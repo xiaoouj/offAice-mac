@@ -3,7 +3,7 @@
 > **macOS Apple 芯片 Beta**：本仓库是 [tonyAmadeus/offAice](https://github.com/tonyAmadeus/offAice) 的 Mac 适配版。
 > [下载 Mac Beta（Releases）](https://github.com/xiaoouj/offAice-mac/releases) · [安装与已知限制](README-MAC-BETA.md)
 > 支持 macOS 13+、arm64，随包附带 Node.js。测试版未经过 Apple 公证，真实账号和多人任务仍需验收。
-> **Beta.2 新增 WorkBuddy 实验连接**：在“设置与连接 → 连接与版本”中保存开放平台令牌、检查本地助理在线状态并发送一句话测试。需要开发者应用授权；真实消息往返尚未验证，暂不开放为团队成员。详见 [试验说明](docs/WorkBuddy-实验接入.md)。
+> **Beta.3 已移除 WorkBuddy 实验功能，并修复聊天超时体验**：聊天等待默认延长至 300 秒并可配置，明确显示 Codex 网络重连，区分系统代理与 TUN。真实 GPT 在本机切换到可用显式代理后已恢复回复；更新不会自动切换你的网络出口。
 
 AIROOM 是一个装在自己电脑上的“AI 工作室”。
 

@@ -1,9 +1,10 @@
 /** Silence, rather than total generation time, bounds conversation-only turns. */
-export const ROOM_REPLY_IDLE_MS = 90_000;
+import { DEFAULT_REPLY_IDLE_SECONDS } from '../shared/reply-timeout';
+export const ROOM_REPLY_IDLE_MS = DEFAULT_REPLY_IDLE_SECONDS * 1000;
 
 export class RoomReplyTimeoutError extends Error {
-  constructor() {
-    super("成员连续 90 秒没有新输出，本轮已跳过；后续轮次暂不再调用这位成员。");
+  constructor(idleMs = ROOM_REPLY_IDLE_MS) {
+    super(`成员连续 ${Math.ceil(idleMs / 1000)} 秒未返回新内容，已停止等待并跳过本轮；请检查网络出口或在设置中延长聊天等待时间，核对后可重新加入。没有自动重发。`);
     this.name = "RoomReplyTimeoutError";
   }
 }
@@ -21,7 +22,7 @@ export class RoomReplyWatchdog {
     if (this.timer) clearTimeout(this.timer);
     this.timer = setTimeout(() => {
       this.expired();
-      this.reject?.(new RoomReplyTimeoutError());
+      this.reject?.(new RoomReplyTimeoutError(this.idleMs));
       this.close();
     }, this.idleMs);
     this.timer.unref();

@@ -6,12 +6,6 @@ import { PROJECT_TREE_METHODS } from './project-tree';
 /** Every request the workbench window may send. The main process rejects any other name. */
 export const RENDERER_METHODS: readonly string[] = [
   'snapshot',
-  'workbuddy.status',
-  'workbuddy.saveToken',
-  'workbuddy.check',
-  'workbuddy.test',
-  'workbuddy.cancel',
-  'workbuddy.openDocs',
   'backend.restart',
   'provider.probe',
   'network.check',

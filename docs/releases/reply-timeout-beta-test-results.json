@@ -1,0 +1,36 @@
+{
+  "version": "0.1.0-beta.3",
+  "causeObserved": "OpenAI connection timed out on system route; existing explicit local proxy reached service. Native Codex reconnects were then interrupted by the fixed 90-second room inactivity limit.",
+  "appliedLocally": "Selected existing explicit proxy in AIROOM settings; no system-wide proxy or credentials changed.",
+  "realModelValidation": {
+    "provider": "Codex ChatGPT subscription",
+    "cliVersion": "0.163.0",
+    "prompt": "A single request to reply with connection confirmation without tools or file operations.",
+    "reply": "连接正常",
+    "status": "ended",
+    "delivery": "confirmed"
+  },
+  "automatedTests": {
+    "typecheck": "passed",
+    "testsPassed": 9,
+    "newReplyRegressionTests": 4
+  },
+  "limits": [
+    "No automatic replay of unknown requests",
+    "Native reconnect notices do not keep stalled turns alive indefinitely",
+    "No guarantee for other network environments",
+    "Other users must choose a working network route explicitly"
+  ],
+  "removedFeature": "WorkBuddy experiment UI, token handling, IPC methods, service, tests and release assets removed.",
+  "desktopSettingsValidation": {
+    "scope": "Isolated desktop settings; no model request or real account.",
+    "checks": [
+      "WorkBuddy experiment UI removed and former IPC endpoint rejected",
+      "fresh profile shows 300-second chat inactivity setting and bounded-wait explanation",
+      "custom chat inactivity value saves through UI and persists after app restart",
+      "network route guidance visible; no renderer exceptions"
+    ],
+    "ok": true,
+    "rendererErrors": []
+  }
+}

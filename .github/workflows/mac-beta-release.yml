@@ -47,7 +47,7 @@ jobs:
           npm run typecheck
           npm run build
           npm run test:mac
-          npm run test:workbuddy
+          npm run test:reply
 
       - name: Build Mac installers
         env:
@@ -64,8 +64,7 @@ jobs:
           cp release-mac/*.dmg release-mac/*.zip release-assets/
           cp README-MAC-BETA.md release-assets/Mac-Beta-Readme.md
           cp docs/releases/local-beta-test-results.json release-assets/Local-Beta-1-Test-Results.json
-          cp docs/releases/workbuddy-beta-test-results.json release-assets/WorkBuddy-Experiment-Results.json
-          cp docs/WorkBuddy-实验接入.md release-assets/WorkBuddy-Experiment.md
+          cp docs/releases/reply-timeout-beta-test-results.json release-assets/Reply-Timeout-Results.json
           git archive --format=zip --prefix=offAice-mac/ -o release-assets/offAice-mac-source.zip HEAD
           cd release-assets
           shasum -a 256 ./* > SHA256SUMS.txt

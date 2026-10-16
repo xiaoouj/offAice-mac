@@ -15,6 +15,7 @@ import { RoomRuntimePool, runtimeFingerprint, type RuntimeLease } from './runtim
 import { RuntimeMetrics } from './runtime-metrics';
 import { RoomReplyWatchdog, boundedRoomCleanup } from './room-reply-watchdog';
 import { acknowledgedNativeContext, nativeContextNeedsRefresh } from './native-context';
+import { replyIdleSeconds } from '../shared/reply-timeout';
 
 const now = () => new Date().toISOString();
 
@@ -295,7 +296,7 @@ export async function executeRun(host: RunExecutionHost, active: RunExecutionAct
       )
     )
       active.replyWatchdog = new RoomReplyWatchdog(
-        host.timing?.roomReplyIdleMs,
+        host.timing?.roomReplyIdleMs ?? replyIdleSeconds(ctx.settings.roomReplyIdleSeconds) * 1000,
         () => {
           active.replyExpired = true;
         },

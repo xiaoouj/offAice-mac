@@ -107,6 +107,7 @@ import {
   rememberExecutors,
 } from "../shared/defaults";
 import { AcpAdapter } from "./adapters/acp";
+import { replyIdleSeconds } from '../shared/reply-timeout';
 import { ZcodeAdapter } from "./adapters/zcode";
 import type { CatalogLoginState } from "../shared/executor-catalog";
 import { Store } from "./store";
@@ -445,6 +446,7 @@ export class Engine {
         this.store.put("settings_backups", "before-automatic-work", saved);
       this.settings = automaticWorkSettings(this.settings);
     }
+    this.settings.roomReplyIdleSeconds = replyIdleSeconds(this.settings.roomReplyIdleSeconds);
     this.settings.maxRunMinutes = bounded(
       this.settings.maxRunMinutes,
       1,
@@ -4202,6 +4204,7 @@ export class Engine {
           next.maxParallel > 8
         )
           throw new Error("同时运行数量应为 1–8");
+        next.roomReplyIdleSeconds = replyIdleSeconds(next.roomReplyIdleSeconds);
         next.maxRunMinutes = bounded(
           next.maxRunMinutes,
           1,

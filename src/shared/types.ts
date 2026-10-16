@@ -49,6 +49,8 @@ export interface Settings {
   /** New write-capable sessions answer native operation approvals automatically; questions still wait. */
   defaultAutoApprove: boolean;
   maxRunMinutes: number; deepseekMaxRequests: number;
+  /** Conversation-only inactivity limit; native reconnect notices are not reply content. */
+  roomReplyIdleSeconds?: number;
   permissions: Record<PermissionMember, MemberPermissions>;
   /** Per-person overrides. Missing fields inherit the executor's defaults. */
   memberPermissions?: Record<string, Partial<MemberPermissions>>;

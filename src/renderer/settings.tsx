@@ -22,7 +22,7 @@ import { PROVIDERS, dateTime, providerSummary, runnable, useTicker, type Invoke,
 import { BackupSettings } from './backup';
 import { RunningVersionCard } from './version';
 import { roomBackdropEnabled, setRoomBackdropEnabled } from './room-backdrop';
-import { WorkBuddyConnection } from './workbuddy';
+import { replyIdleSeconds } from '../shared/reply-timeout';
 
 export type Installs = Partial<Record<ProviderId, { version: string; startedAt: number }>>;
 export type ThemeChoice = 'system' | 'light' | 'dark';
@@ -171,7 +171,6 @@ export function SettingsModal({ snapshot, invoke, onClose, notify, installs, onI
               {!(provider==='claude'&&settings.claudeAuthMode==='api')&&info?.quota != null && <details className="quota-details"><summary>查看服务端额度信息</summary><pre>{typeof info.quota === 'string' ? info.quota : JSON.stringify(info.quota, null, 2)}</pre></details>}
             </section>;
           })}
-          <WorkBuddyConnection invoke={invoke} available={snapshot.backendReady}/>
           {(snapshot.executors ?? []).length > 0 && <><div className="settings-section-heading"><h3>外接的 AI 程序</h3></div>
             <p className="settings-description">清单执行端自动使用对应适配；手动连接使用 ACP。登录、模型和权限按执行端实际能力提供。</p></>}
           {(snapshot.executors ?? []).map(executor => <div key={executor.id} data-provider={executor.id}><AcpConnection executor={executor} info={snapshot.providers.find(item => item.id === executor.id)} snapshot={snapshot} invoke={invoke} notify={notify} settings={settings} setSettings={setSettings} /></div>)}
@@ -180,7 +179,7 @@ export function SettingsModal({ snapshot, invoke, onClose, notify, installs, onI
         {tab === 'permissions' && <PermissionSettings snapshot={snapshot} settings={settings} setSettings={setSettings} />}
         {tab === 'network' && <>
           <div className="settings-section-heading"><h3>使用当前网络出口</h3></div>
-          <p className="settings-description">默认沿用你已经开启的 TUN，独立 CLI 和本机客户端使用相同的网络环境。</p>
+          <p className="settings-description">请选择这台电脑实际可用的网络出口。系统代理与 TUN 是两种不同模式；仅开启系统代理时，请选择“使用显式代理”。</p>
           <label className={`network-option ${settings.networkMode === 'tun' ? 'selected' : ''}`}><input type="radio" checked={settings.networkMode === 'tun'} onChange={() => setSettings(previous => ({ ...previous, networkMode: 'tun' }))} /><span><strong>沿用系统 TUN</strong><small>无需另设代理地址。任务运行时请保持 TUN 开启。</small></span><Globe2 size={20} /></label>
           <label className={`network-option ${settings.networkMode === 'proxy' ? 'selected' : ''}`}><input type="radio" checked={settings.networkMode === 'proxy'} onChange={() => setSettings(previous => ({ ...previous, networkMode: 'proxy' }))} /><span><strong>使用显式代理</strong><small>工作台启动的成员程序都走这个代理。</small></span><Network size={20} /></label>
           {settings.networkMode === 'proxy' && <label className="field">代理地址<input value={settings.proxyUrl} onChange={event => setSettings(previous => ({ ...previous, proxyUrl: event.target.value }))} placeholder="http://127.0.0.1:7897" spellCheck={false} /></label>}
@@ -201,6 +200,7 @@ export function SettingsModal({ snapshot, invoke, onClose, notify, installs, onI
           </section>
           <section className="settings-group" aria-label="任务运行"><h3>任务运行</h3>
             <div className="settings-field-grid">
+              <label className="field">聊天等待新输出（秒）<input type="number" min="30" max="1800" value={replyIdleSeconds(settings.roomReplyIdleSeconds)} onChange={event=>setSettings(previous=>({...previous,roomReplyIdleSeconds:Number(event.target.value)}))}/><small>默认 300 秒，范围 30–1800 秒。收到正文、思考摘要或工具进度后重新计时，等待你回答时暂停；网络重连提示不延长等待。单个任务最长运行时间仍然有效。</small></label>
               <label className="field">同时执行的任务数量<input type="number" min="1" max="8" value={settings.maxParallel} onChange={event => setSettings(previous => ({ ...previous, maxParallel: Number(event.target.value) || 1 }))} /><small>并行任务会共用各成员账号的额度。</small></label>
               <label className="field">单个任务最长运行时间（分钟）<input type="number" min="1" max="1440" value={settings.maxRunMinutes ?? 30} onChange={event => setSettings(previous => ({ ...previous, maxRunMinutes: Math.min(1440, Math.max(1, Number(event.target.value) || 30)) }))} /><small>包括等待审批的时间。到期会请求停止，并核对执行状态。</small></label>
               <label className="field">停止等待时间（秒）<input type="number" min="1" max="60" value={settings.stopTimeoutMs / 1000} onChange={event => setSettings(previous => ({ ...previous, stopTimeoutMs: (Number(event.target.value) || 10) * 1000 }))} /><small>超时后工作台会停下这一轮并清理残留程序，结果标为待核对。</small></label>

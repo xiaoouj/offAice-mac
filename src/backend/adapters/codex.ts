@@ -412,7 +412,7 @@ export class CodexAdapter implements Adapter {
     }
     if (turnId && turnId !== this.turnId) return;
     if (!this.delivered && (method.startsWith('turn/') || method.startsWith('item/'))) return;
-    if (method === 'turn/started') { if (params.turn?.id !== this.turnId) return; this.confirmed = true; context.markDelivery('confirmed', this.turnId); }
+    if (method === 'turn/started') { if (params.turn?.id !== this.turnId) return; this.confirmed = true; context.markDelivery('confirmed', this.turnId); context.progress?.(); }
     else if (method === 'turn/completed') this.completeTurn(params.turn);
     else if (method === 'item/agentMessage/delta') {
       const key = params.itemId ?? '';
@@ -425,6 +425,7 @@ export class CodexAdapter implements Adapter {
     else if (method === 'item/commandExecution/outputDelta') context.emit('output', params.delta ?? '', params);
     else if (method === 'item/started' || method === 'item/completed') {
       const item = object(params.item);
+      if (method === 'item/started' && item.type === 'reasoning') context.progress?.();
       if (item.type === 'contextCompaction') context.invalidateNativeContext?.();
       if(method==='item/completed'&&item.id){if(this.completedItems.has(item.id))return;this.completedItems.add(item.id);}
       if(item.type==='imageGeneration'){
@@ -459,7 +460,12 @@ export class CodexAdapter implements Adapter {
       } else if (item.type === 'plan' && method === 'item/completed') context.emit('plan', item.text ?? '', item);
       else if (item.type && !['userMessage', 'reasoning', 'agentMessage'].includes(item.type)) context.emit('tool', `${method === 'item/started' ? '开始' : '结束'}：${item.command ?? item.tool ?? item.type}`, {...item,airoomPhase:method==='item/started'?'started':'completed'});
     } else if (method === 'thread/tokenUsage/updated' || method === 'account/rateLimits/updated') { this.usage = params; context.emit('usage', '实际用量已更新。', params); }
-    else if (method === 'error') context.emit('error', params.error?.message ?? describe(params), params);
+    else if (method === 'error') {
+      // The native CLI owns this retry. A transport retry is not content, completion,
+      // or permission to replay turn/start; keep the inactivity timer bounded.
+      if (params.willRetry === true) context.emit('warning', `Codex 请求暂时中断，官方程序正在重连。若反复出现，请检查“设置与连接 → 网络”的 TUN 或显式代理。原始提示：${params.error?.message ?? '连接未完成'}`, params);
+      else context.emit('error', params.error?.message ?? describe(params), params);
+    }
     else if (method === 'warning' || method === 'configWarning') context.emit('warning', params.message ?? params.summary ?? describe(params), params);
   }
 
