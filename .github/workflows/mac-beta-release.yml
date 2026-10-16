@@ -45,6 +45,7 @@ jobs:
       - name: Verify source and Mac behavior
         run: |
           npm run typecheck
+          npm run build
           npm run test:mac
 
       - name: Build Mac installers

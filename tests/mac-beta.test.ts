@@ -10,6 +10,7 @@ import {DEFAULT_SETTINGS} from '../src/shared/defaults';
 import {supportsCatalogPlatform,catalogEntry} from '../src/shared/executor-catalog';
 import {copyProductionDependencies} from '../scripts/runtime-dependencies.mjs';
 import {Engine} from '../src/backend/engine';
+import {createBackup} from '../src/backend/backup';
 import type {Adapter,Project,Session} from '../src/shared/types';
 
 test('Mac runtime supports Unix npm layout and paths with spaces without Electron Node mode',async()=>{
@@ -71,7 +72,7 @@ test('task work copies preserve original files until apply, then undo restores t
     async start(ctx){ctx.markDelivery('sent');await writeFile(path.join(ctx.cwd,'hello.txt'),'updated');ctx.emit('message','Local fixture complete',undefined,'native');ctx.markDelivery('confirmed');return {summary:'Local fixture complete'};},
     async stop(){},
   };
-  const engine=new Engine(path.join(root,'data'),()=>{},()=>{},()=>adapter);
+  const engine=new Engine(path.join(root,'data'),()=>{},()=>{},()=>adapter,undefined,undefined,async(data,reason)=>{await createBackup(data,reason);});
   try{
     await engine.probe('codex');
     const project=await engine.invoke('project.create',{directory}) as Project;
