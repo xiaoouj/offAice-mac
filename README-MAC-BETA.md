@@ -1,11 +1,17 @@
-# AIROOM Mac Beta 0.1.0-beta.1
+# AIROOM Mac Beta 0.1.0-beta.2
 
 基于 tonyAmadeus/offAice 上游提交 c6e2b59114763d83c93edeb2758a6cbe2ffbb952 的本地 macOS 适配。
+
+## Beta.2：WorkBuddy 实验连接
+
+在“设置与连接 → 连接与版本”的 WorkBuddy 实验连接中，填写开放平台 OAuth Access Token 后可检查本地助理在线状态、发送一句话测试并核对带随机标识的回复。令牌使用系统加密独立保存，不进入数据库或快照。
+
+当前没有开发者应用授权，真实消息往返尚未验证。接口测试及桌面模拟测试已通过；本机已安装 WorkBuddy 5.8.3，但安装、登录桌面应用不等于取得开放平台授权。此版不开放 WorkBuddy 团队成员、并发任务、文件写回或自动令牌刷新。停止等待不会取消 WorkBuddy 中已投递的任务。[试验步骤与限制](docs/WorkBuddy-实验接入.md)。
 
 ## 运行条件与安装
 
 - Apple 芯片 Mac（M1/M2/M3/M4 等 arm64），macOS 13 或以上。本版不提供 Intel 构建。
-- 打开 `AIROOM-0.1.0-beta.1-macOS-arm64.dmg`，将 `AIROOM Mac Beta.app` 拖到“应用程序”，再打开应用。也可以完整解压 ZIP 后运行其中的应用。
+- 打开 `AIROOM-0.1.0-beta.2-macOS-arm64.dmg`，将 `AIROOM Mac Beta.app` 拖到“应用程序”，再打开应用。也可以完整解压 ZIP 后运行其中的应用。
 - 随包附带标准 Node.js 26.6.0 和 npm，基础启动与执行端安装不需要你预装 Node.js；下载执行端和使用 AI 需要联网。
 - 在“设置与连接 → 连接与版本”选择执行端，阅读厂商条款后下载、登录，再创建人物卡。
 - 关闭窗口会保留后台运行，可从 Dock 或菜单栏唤回；按 Command-Q 完全退出。

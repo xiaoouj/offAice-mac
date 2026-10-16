@@ -34,7 +34,7 @@ try{
   assert.ok(!catalog.items.some(item=>item.entry.distribution));
   results.checks.push('bundled standard Node.js and platform-filtered catalog');
   const runtime=await app.evaluate(({app,Menu})=>({version:app.getVersion(),packaged:app.isPackaged,menu:Menu.getApplicationMenu().items.map(item=>item.label)}));
-  assert.equal(runtime.packaged,true);assert.equal(runtime.version,'0.1.0-beta.1');assert.ok(runtime.menu.includes('编辑'));
+  assert.equal(runtime.packaged,true);assert.equal(runtime.version,JSON.parse(await (await import('node:fs/promises')).readFile(path.join(root,'package.json'),'utf8')).version);assert.ok(runtime.menu.includes('编辑'));
   await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].close());
   assert.equal(await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].isVisible()),false);
   await app.evaluate(({app})=>app.emit('activate'));

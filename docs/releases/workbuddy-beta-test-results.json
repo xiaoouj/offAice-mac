@@ -1,0 +1,66 @@
+{
+  "version": "0.1.0-beta.2",
+  "scope": "WorkBuddy local-assistant experiment",
+  "realService": {
+    "installedDesktopVersion": "5.8.3",
+    "unauthenticatedEndpointStatus": 401,
+    "developerAppAuthorized": false,
+    "realModelRequestSent": false,
+    "realMessageRoundTrip": "not verified; developer application authorization unavailable"
+  },
+  "unitTests": {
+    "passed": 6,
+    "scenarios": [
+      "explicit opt-in and no model task during status check",
+      "fresh reply correlation and shared-history privacy",
+      "unrelated replies never establish success",
+      "expired/insufficient authorization, offline and malformed responses",
+      "uncertain POST delivery and credential replacement race",
+      "cancel polling without claiming remote cancellation"
+    ]
+  },
+  "desktopMock": {
+    "scope": "Isolated desktop and mock official API; no real WorkBuddy authorization or model call.",
+    "checks": [
+      "fresh packaged profile shows unconfigured state, disables test and never requests a keychain for an absent token",
+      "token input clears immediately, persisted secret is encrypted, snapshots exclude credentials",
+      "encrypted token reloads after restarting the isolated app",
+      "UI confirmation, IPC allowlist, online check and marker-confirmed mock round trip",
+      "token clear and no renderer exceptions"
+    ],
+    "ok": true,
+    "rendererErrors": []
+  },
+  "limits": [
+    "WorkBuddy team membership and parallel task execution not enabled",
+    "No file writeback or tool-permission compatibility claim",
+    "Stopping polling does not cancel the remote task",
+    "No automatic access-token refresh"
+  ],
+  "packagedDesktopMock": {
+    "scope": "Isolated desktop and mock official API; no real WorkBuddy authorization or model call.",
+    "checks": [
+      "fresh packaged profile shows unconfigured state, disables test and never requests a keychain for an absent token",
+      "token input clears immediately, persisted secret is encrypted, snapshots exclude credentials",
+      "encrypted token reloads after restarting the isolated app",
+      "UI confirmation, IPC allowlist, online check and marker-confirmed mock round trip",
+      "token clear and no renderer exceptions"
+    ],
+    "ok": true,
+    "rendererErrors": []
+  },
+  "sourceValidation": {
+    "typecheck": "passed",
+    "macTests": 5,
+    "workBuddyTests": 6,
+    "totalTests": 11
+  },
+  "packageValidation": {
+    "codesignDeepStrict": "passed",
+    "runtimeDependencies": {
+      "packages": 156,
+      "nested": 147,
+      "peers": 0
+    }
+  }
+}

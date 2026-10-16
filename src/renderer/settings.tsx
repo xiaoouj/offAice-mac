@@ -22,6 +22,7 @@ import { PROVIDERS, dateTime, providerSummary, runnable, useTicker, type Invoke,
 import { BackupSettings } from './backup';
 import { RunningVersionCard } from './version';
 import { roomBackdropEnabled, setRoomBackdropEnabled } from './room-backdrop';
+import { WorkBuddyConnection } from './workbuddy';
 
 export type Installs = Partial<Record<ProviderId, { version: string; startedAt: number }>>;
 export type ThemeChoice = 'system' | 'light' | 'dark';
@@ -170,6 +171,7 @@ export function SettingsModal({ snapshot, invoke, onClose, notify, installs, onI
               {!(provider==='claude'&&settings.claudeAuthMode==='api')&&info?.quota != null && <details className="quota-details"><summary>查看服务端额度信息</summary><pre>{typeof info.quota === 'string' ? info.quota : JSON.stringify(info.quota, null, 2)}</pre></details>}
             </section>;
           })}
+          <WorkBuddyConnection invoke={invoke} available={snapshot.backendReady}/>
           {(snapshot.executors ?? []).length > 0 && <><div className="settings-section-heading"><h3>外接的 AI 程序</h3></div>
             <p className="settings-description">清单执行端自动使用对应适配；手动连接使用 ACP。登录、模型和权限按执行端实际能力提供。</p></>}
           {(snapshot.executors ?? []).map(executor => <div key={executor.id} data-provider={executor.id}><AcpConnection executor={executor} info={snapshot.providers.find(item => item.id === executor.id)} snapshot={snapshot} invoke={invoke} notify={notify} settings={settings} setSettings={setSettings} /></div>)}

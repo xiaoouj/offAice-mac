@@ -1,6 +1,6 @@
 {
   "name": "airoom",
-  "version": "0.1.0-beta.1",
+  "version": "0.1.0-beta.2",
   "private": true,
   "description": "本地多成员 AI 工作台",
   "main": "dist/main.mjs",
@@ -19,7 +19,8 @@
     "postpackage": "node scripts/package-handoff.mjs",
     "deploy": "node scripts/deploy-runtime.mjs",
     "package:mac": "node scripts/prepare-mac-runtime.mjs && npm run build && electron-builder --mac --arm64 --config electron-builder.mac.json",
-    "test:mac": "node --import tsx --test tests/mac-beta.test.ts"
+    "test:mac": "node --import tsx --test tests/mac-beta.test.ts",
+    "test:workbuddy": "node --import tsx --test tests/workbuddy.test.ts"
   },
   "dependencies": {
     "7zip-bin": "5.2.0",

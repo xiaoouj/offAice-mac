@@ -30,6 +30,7 @@ import { BackupRestorer, recoverInterruptedRestore, RestoreFailure } from '../ba
 import type { BackupEntry } from '../shared/backup';
 import { acceptRunningVersion, runningVersion } from './version';
 import { npmEntryForNode } from '../backend/node-runtime';
+import { WorkBuddyLocal } from '../backend/workbuddy-local';
 
 // Check before touching user data, starting workers, or opening a login.
 try { assertNormalIntegrity(); }
@@ -166,6 +167,21 @@ async function emergencyStop() {
   return { received: true, detail: '执行服务与本应用的成员已停止，旧结果待核对' };
 }
 function secretFile() { return path.join(dataDirectory, 'deepseek.secret'); }
+const workBuddyTokenFile = () => path.join(dataDirectory, 'secrets', 'workbuddy-access.secret');
+let workBuddy: WorkBuddyLocal | undefined;
+function workBuddyService() {
+  if (workBuddy) return workBuddy;
+  workBuddy = new WorkBuddyLocal((url, init) => net.fetch(url, init));
+  // Empty profiles never touch the system keychain.
+  if (existsSync(workBuddyTokenFile())) {
+    if (!safeStorage.isEncryptionAvailable()) { workBuddy.close(); workBuddy=undefined; throw new Error('系统凭据加密不可用，无法读取 WorkBuddy 授权。'); }
+    try {
+      const value = safeStorage.decryptString(readFileSync(workBuddyTokenFile()));
+      registerSecret(value); workBuddy.configure(value);
+    } catch { workBuddy.close(); workBuddy = undefined; throw new Error('无法读取 WorkBuddy 授权，请重新保存令牌。'); }
+  }
+  return workBuddy;
+}
 /** Claude's long-lived subscription token from `claude setup-token`, encrypted with the system's credential protection. */
 function claudeTokenFile() { return path.join(dataDirectory, 'claude-token.secret'); }
 const claudeApiFile=()=>path.join(dataDirectory,'secrets','claude-api.secret');
@@ -286,6 +302,7 @@ async function restoreData(params:any){
   if(params?.confirm!==true||typeof params?.token!=='string')throw new Error('请先预览、校验备份并明确确认恢复。');
   if(restoring)throw new Error('资料正在恢复，请等待本次操作完成。');
   if(loginChildren.size||loginStarting.size)throw new Error('成员登录仍在进行，请完成或结束登录后再恢复。');
+  workBuddy?.close(); workBuddy=undefined;
   restoring=true;let paused=false,closed=false,closingWorker:UtilityProcess|undefined;
   try{
     await backups.verifyPrepared(params.token);
@@ -391,6 +408,24 @@ function registerIpc() {
     if (method === 'all.stop') return emergencyStop();
     if (method === 'backend.restart') return restartBackend();
     if (method === 'renderer.error') return logRendererError(params);
+    if (method === 'workbuddy.status') return workBuddyService().status();
+    if (method === 'workbuddy.check') return workBuddyService().check();
+    if (method === 'workbuddy.test') {
+      if (params?.confirm !== true) throw new Error('请先确认发送一句话连接测试。');
+      return workBuddyService().startTest();
+    }
+    if (method === 'workbuddy.cancel') return workBuddyService().cancel();
+    if (method === 'workbuddy.openDocs') { await shell.openExternal('https://open.workbuddy.cn/docs/openapi'); return { opened: true }; }
+    if (method === 'workbuddy.saveToken') {
+      if (typeof params?.value !== 'string') throw new Error('请填写 WorkBuddy Access Token。');
+      const value = params.value.trim();
+      if (value.length > 16_384 || /[\r\n\s]/.test(value)) throw new Error('Access Token 格式不正确。');
+      if (value) { registerSecret(value); writeEncryptedSecret(workBuddyTokenFile(), value); }
+      else rmSync(workBuddyTokenFile(), { force: true });
+      // Reset any in-flight response before applying the new credentials.
+      workBuddy?.close(); workBuddy=undefined;
+      return workBuddyService().status();
+    }
     if (method === 'executor.save') return saveExecutor(params);
     if(method==='executor.authenticate'){
       const executor=lastSnapshot?.executors?.find(item=>item.id===params?.id);
@@ -639,6 +674,7 @@ else {
   app.on('activate',()=>showMainWindow('dock-activate'));
   app.whenReady().then(async () => { await recoverInterruptedRestore(dataDirectory);serveAssets(); registerIpc();createMacMenu(); createWindow(); createTray(); startBackend(); powerMonitor.on('resume', () => { void checkConnectivity(); }); }).catch(startupFailed);
   app.on('before-quit', event => {
+    workBuddy?.close();
     if(restoring){event.preventDefault();quitAfterRestore=true;return;}
     if (quitting) return; event.preventDefault(); quitting = true;
     void (async () => { await emergencyStop(); if (ready) try { await request('internal.close', {}, 5000); } catch { stopBackend(); }stopPosixGroups(); tray?.destroy(); app.exit(0); })();
