@@ -44,7 +44,7 @@ async function filePath(root:string,relative:string){
 }
 async function locations(session:Session,dataDirectory:string){
   if(!session.workspace||!['copy','worktree'].includes(session.workspaceKind??''))throw new Error('只有允许写入的独立工作副本可以撤销。');
-  const workspaces=path.resolve(dataDirectory,'workspaces'),relative=path.relative(workspaces,path.resolve(session.workspace));
+  const workspaces=await fs.realpath(path.resolve(dataDirectory,'workspaces')),relative=path.relative(workspaces,path.resolve(session.workspace));
   if(!relative||relative.startsWith('..')||path.isAbsolute(relative))throw new Error('工作副本不在 AIROOM 的工作区目录里。');
   const root=resolveSafePath(workspaces,relative);
   if((await fs.lstat(root)).isSymbolicLink())throw new Error('工作副本不能是目录链接。');

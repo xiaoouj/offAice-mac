@@ -593,6 +593,10 @@ export const ALL_EXECUTOR_CATALOG: readonly ExecutorCatalogEntry[] = [
 export const EXECUTOR_CATALOG = ALL_EXECUTOR_CATALOG.filter(
   (entry) => entry.downloadable !== false,
 );
+/** These installers currently unpack Windows distributions only. */
+export function supportsCatalogPlatform(entry:ExecutorCatalogEntry,platform:string):boolean {
+  return platform==='win32'||!entry.distribution;
+}
 export function catalogEntry(id: unknown): ExecutorCatalogEntry {
   const entry = ALL_EXECUTOR_CATALOG.find((item) => item.id === id);
   if (!entry) throw new Error("执行端不在内置清单中，请使用手动添加。");

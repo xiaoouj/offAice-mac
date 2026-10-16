@@ -1,6 +1,8 @@
 node_modules/
 dist/
 release/
+release-mac/
+build/mac-node-runtime/
 .npm-cache/
 .electron-cache/
 .electron-temp/
@@ -15,3 +17,4 @@ release/
 *.log
 tests/results/
 tests/ui/results/
+release-assets/

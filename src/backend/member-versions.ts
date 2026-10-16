@@ -2,7 +2,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { mkdir, rm, rename, writeFile, lstat, realpath, readdir } from 'node:fs/promises';
 import { randomUUID, createHash } from 'node:crypto';
 import path from 'node:path';
-import { ALL_EXECUTOR_CATALOG, catalogEntry, type CatalogId } from '../shared/executor-catalog';
+import { ALL_EXECUTOR_CATALOG, catalogEntry, supportsCatalogPlatform, type CatalogId } from '../shared/executor-catalog';
 import type { MemberInstallation } from '../shared/member-versions';
 import type { ChildProcess } from 'node:child_process';
 import { spawnOwned, stopOwned } from './process-supervisor';
@@ -162,6 +162,7 @@ async function stagingBytes(root:string):Promise<number>{
 const installations = new Set<string>();
 export async function installVersion(data: string, member: CatalogId, version: string, env: NodeJS.ProcessEnv, options: InstallOptions = {}): Promise<InstalledVersion> {
   const catalog=catalogEntry(member);
+  if(!supportsCatalogPlatform(catalog,process.platform))throw new Error('Mac Beta 暂未适配此执行端的自动安装，请使用手动连接。');
   if (!isCatalogVersion(member,version)) throw new Error('版本号格式无效。');
   const root = path.resolve(membersRoot(data), member), prefix = versionDirectory(data, member, version), key = root.toLowerCase();
   if (installations.has(key)) throw new Error('该成员正在安装，请等待完成。'); installations.add(key);

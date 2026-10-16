@@ -6,13 +6,16 @@ import type { NodeRuntimeInfo } from '../shared/executor-catalog';
 import { windowsConsoleArguments } from './windows-console';
 
 const localVersions=new Map<string,string|undefined>();
+export function npmEntryForNode(file:string):string|undefined {
+  return [path.join(path.dirname(file),'node_modules/npm/bin/npm-cli.js'),path.resolve(path.dirname(file),'../lib/node_modules/npm/bin/npm-cli.js')].find(existsSync);
+}
 export function nodeAtLeast(version:string,minimum:string){
   const a=version.replace(/^v/,'').split('.').map(Number),b=minimum.split('.').map(Number);
   for(let index=0;index<3;index++){if(!Number.isFinite(a[index]))return false;if(a[index]!==b[index])return a[index]>b[index];}return true;
 }
 function localRuntime(env:NodeJS.ProcessEnv){
   const file=env.AIROOM_LOCAL_NODE_EXE || (!process.versions.electron?env.AIROOM_NODE_EXE:undefined);
-  if(!file||!existsSync(file)||!existsSync(path.join(path.dirname(file),'node_modules/npm/bin/npm-cli.js')))return;
+  if(!file||!existsSync(file)||!npmEntryForNode(file))return;
   if(!localVersions.has(file)){
     const clean={...env};delete clean.ELECTRON_RUN_AS_NODE;
     const result=spawnSync(file,['-p','process.versions.node'],{encoding:'utf8',timeout:5000,windowsHide:true,env:clean});
@@ -32,24 +35,32 @@ export function nodeRuntimeInfo(settings:Settings,env:NodeJS.ProcessEnv=process.
 export function nodeRuntimeEnvironment(settings:Settings,base:NodeJS.ProcessEnv):NodeJS.ProcessEnv {
   const info=nodeRuntimeInfo(settings,base),local=info.source==='local'?localRuntime(base):undefined;
   const bundled=base.AIROOM_BUNDLED_NODE_EXE||process.execPath;
-  return {...base,AIROOM_NODE_EXE:local?.file||bundled,AIROOM_NODE_SOURCE:info.source,AIROOM_NODE_VERSION:info.version};
+  const file=local?.file||bundled;
+  const env:NodeJS.ProcessEnv={...base,AIROOM_NODE_EXE:file,AIROOM_NODE_SOURCE:info.source,AIROOM_NODE_VERSION:info.version};
+  if(process.platform!=='win32')env.PATH=[path.dirname(file),env.PATH].filter(Boolean).join(path.delimiter);
+  return env;
 }
 export function npmLaunch(env:NodeJS.ProcessEnv,cwd:string){
   const node=env.AIROOM_NODE_EXE&&existsSync(env.AIROOM_NODE_EXE)?env.AIROOM_NODE_EXE:process.execPath;
   const root=env.AIROOM_APP_ROOT||process.cwd();
   const choices=env.AIROOM_NODE_SOURCE==='local'
-    ?[path.join(path.dirname(node),'node_modules/npm/bin/npm-cli.js')]
-    :[path.join(root,'node_modules/npm/bin/npm-cli.js'),path.join(path.dirname(node),'node_modules/npm/bin/npm-cli.js')];
-  const cli=choices.find(existsSync);if(!cli)throw new Error('AIROOM 自带的 npm 组件缺失，请重新安装完整工作台。');
+    ?[npmEntryForNode(node)]
+    :[path.join(root,'node_modules/npm/bin/npm-cli.js'),npmEntryForNode(node)];
+  const cli=choices.find((file):file is string=>!!file&&existsSync(file));if(!cli)throw new Error('AIROOM 自带的 npm 组件缺失，请重新安装完整工作台。');
   const childEnv={...env};for(const key of Object.keys(childEnv))if(key.toUpperCase()==='ELECTRON_RUN_AS_NODE')delete childEnv[key];
-  const electron=path.resolve(node).toLowerCase()===path.resolve(env.AIROOM_BUNDLED_NODE_EXE||process.execPath).toLowerCase()&&!!process.versions.electron;
+  const electron=path.resolve(node)===path.resolve(process.execPath)&&!!process.versions.electron;
   const directories=[path.dirname(node)];
   if(electron){
     childEnv.ELECTRON_RUN_AS_NODE='1';
     // npm's approved lifecycle scripts invoke `node`; keep this shim inside the managed staging directory.
     const bin=path.join(cwd,'.airoom-node-bin');mkdirSync(bin,{recursive:true});
-    const quote=node.replaceAll('%','%%');
-    writeFileSync(path.join(bin,'node.cmd'),`@echo off\r\nset "ELECTRON_RUN_AS_NODE=1"\r\n"${quote}" %*\r\n`);
+    if(process.platform==='win32'){
+      const quote=node.replaceAll('%','%%');
+      writeFileSync(path.join(bin,'node.cmd'),`@echo off\r\nset "ELECTRON_RUN_AS_NODE=1"\r\n"${quote}" %*\r\n`);
+    }else{
+      const quote="'"+node.replaceAll("'","'\\''")+"'";
+      writeFileSync(path.join(bin,'node'),`#!/bin/sh\nELECTRON_RUN_AS_NODE=1 exec ${quote} "$@"\n`,{mode:0o755});
+    }
     directories.unshift(bin);
   }
   const pathKey=Object.keys(childEnv).find(key=>key.toLowerCase()==='path')||'PATH';

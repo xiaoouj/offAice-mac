@@ -81,7 +81,8 @@ export async function workspaceFingerprint(root:string):Promise<string> {
 export async function prepareWorkspace(project:Project,session:Session,writeMode:boolean,dataDirectory:string,from?:Session,expectedFingerprint?:string):Promise<{directory:string;kind:'worktree'|'copy'|'original';inherited?:{sessionId:string;fingerprint:string}}> {
   const original=await fs.realpath(project.directory);
   if (!writeMode) return {directory:original,kind:'original'};
-  const workspaces=path.resolve(dataDirectory,'workspaces');await fs.mkdir(workspaces,{recursive:true});
+  const workspacePath=path.resolve(dataDirectory,'workspaces');await fs.mkdir(workspacePath,{recursive:true});
+  const workspaces=await fs.realpath(workspacePath);
   if (session.workspace && session.workspaceKind && session.workspaceKind!=='original') {
     const relative=path.relative(workspaces,path.resolve(session.workspace));
     const safe=resolveSafePath(workspaces,relative);
@@ -223,7 +224,7 @@ export async function applyWorkspace(root:string,projectDirectory:string,validat
 /** Remove a session's work copy: a git worktree is unregistered from the project, a plain copy is deleted. */
 export async function discardWorkspace(session:Session,project:Project,dataDirectory:string):Promise<void> {
   if (!session.workspace || !session.workspaceKind || session.workspaceKind==='original') return;
-  const workspaces=path.resolve(dataDirectory,'workspaces');
+  const workspaces=await fs.realpath(path.resolve(dataDirectory,'workspaces'));
   const relative=path.relative(workspaces,path.resolve(session.workspace));
   if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) throw new Error('工作副本不在 AIROOM 的工作区目录里，不能删除。');
   const target=resolveSafePath(workspaces,relative);

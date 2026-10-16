@@ -1,5 +1,9 @@
 # AIROOM · 我们的 AI 工作室
 
+> **macOS Apple 芯片 Beta**：本仓库是 [tonyAmadeus/offAice](https://github.com/tonyAmadeus/offAice) 的 Mac 适配版。
+> [下载 Mac Beta（Releases）](https://github.com/xiaoouj/offAice-mac/releases) · [安装与已知限制](README-MAC-BETA.md)
+> 支持 macOS 13+、arm64，随包附带 Node.js。测试版未经过 Apple 公证，真实账号和多人任务仍需验收。
+
 AIROOM 是一个装在自己电脑上的“AI 工作室”。
 
 你可以把 Claude、Codex、DeepSeek、Qwen、KIMI 等不同的 AI 编程助手请进同一个窗口，给每位起名字、配头像和性格，让它们像同事一样：

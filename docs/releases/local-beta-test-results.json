@@ -1,0 +1,53 @@
+{
+  "version": "0.1.0-beta.1",
+  "platform": "darwin-arm64",
+  "minimumMacOS": "13.0",
+  "testedMacOS": "15.8.2",
+  "desktopChecks": [
+    "packaged app and backend ready with Finder PATH",
+    "bundled standard Node.js and platform-filtered catalog",
+    "native menu, close to menu bar, Dock activate",
+    "official Codex download, integrity verification, app-server connection, signed-out state",
+    "backup creation and restore preview",
+    "clean quit, restart and saved connection persistence",
+    "no renderer exceptions"
+  ],
+  "desktopPassed": true,
+  "rendererErrors": [],
+  "codexPackagedRuntime": {
+    "version": "codex-cli 0.160.1",
+    "auth": "none",
+    "runtimeReady": true
+  },
+  "macTests": {
+    "passed": 5,
+    "failed": 0
+  },
+  "dependenciesVerified": {
+    "packages": 156,
+    "nested": 147
+  },
+  "signature": "ad-hoc; codesign --verify --deep --strict passed on mounted DMG",
+  "notarized": false,
+  "realAccountsOrModelRequestsTested": false,
+  "officialCLIConnectionChecks": [
+    {
+      "id": "claude",
+      "version": "2.1.292 (Claude Code)",
+      "runtimeReady": true,
+      "auth": "none"
+    },
+    {
+      "id": "codex",
+      "version": "codex-cli 0.160.1",
+      "runtimeReady": true,
+      "auth": "none"
+    },
+    {
+      "id": "dsh",
+      "version": "0.2.0-rc.2",
+      "runtimeReady": true,
+      "auth": "none"
+    }
+  ]
+}

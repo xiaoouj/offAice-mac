@@ -38,6 +38,18 @@ export async function stopOwned(child:ChildProcess,timeoutMs=10000):Promise<void
   const ownership=owned.get(child);
   if (!ownership || child.exitCode!==null || child.signalCode!==null) return;
   const deadline=Math.max(100,Math.min(timeoutMs,60000));
+  if(process.platform!=='win32'){
+    const alive=()=>{try{process.kill(-ownership.pid,0);return true;}catch(error){if((error as NodeJS.ErrnoException).code==='ESRCH')return false;throw error;}};
+    if(!alive())return;
+    process.kill(-ownership.pid,'SIGTERM');
+    const until=Date.now()+deadline;
+    while(alive()&&Date.now()<until)await new Promise(resolve=>setTimeout(resolve,50));
+    if(alive())process.kill(-ownership.pid,'SIGKILL');
+    const forcedUntil=Date.now()+2000;
+    while(alive()&&Date.now()<forcedUntil)await new Promise(resolve=>setTimeout(resolve,50));
+    if(alive())throw new Error(`进程组 ${ownership.pid} 停止尚未得到确认，请核对进程状态。`);
+    return;
+  }
   await new Promise<void>((resolve,reject)=>{
     let finished=false;
     let forceTimer:ReturnType<typeof setTimeout>|undefined;

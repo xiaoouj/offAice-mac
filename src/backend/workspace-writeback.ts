@@ -80,8 +80,8 @@ async function load(root: string, runId: string, directory: string) {
   }
   if (
     record.version !== 1 ||
-    path.resolve(record.directory).toLowerCase() !==
-      path.resolve(directory).toLowerCase()
+    (await fs.realpath(record.directory)) !==
+      (await fs.realpath(directory))
   )
     throw new Error("写回还原点与当前项目不匹配。");
   if (record.runId !== runId) {

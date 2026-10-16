@@ -1,0 +1,60 @@
+{
+  "appId": "local.airoom.desktop.macbeta",
+  "productName": "AIROOM Mac Beta",
+  "directories": {
+    "output": "release-mac"
+  },
+  "asar": false,
+  "electronDist": "node_modules/electron/dist",
+  "npmRebuild": false,
+  "files": [
+    "dist/**/*",
+    "package.json",
+    "package-lock.json",
+    "!node_modules/**/*",
+    "!**/*.map"
+  ],
+  "extraResources": [
+    {
+      "from": "build/mac-node-runtime",
+      "to": "node-runtime"
+    }
+  ],
+  "afterPack": "scripts/mac-after-pack.mjs",
+  "mac": {
+    "target": [
+      {
+        "target": "dmg",
+        "arch": [
+          "arm64"
+        ]
+      },
+      {
+        "target": "zip",
+        "arch": [
+          "arm64"
+        ]
+      }
+    ],
+    "artifactName": "AIROOM-${version}-macOS-${arch}.${ext}",
+    "category": "public.app-category.productivity",
+    "icon": "build/airoom-source.png",
+    "identity": "-",
+    "hardenedRuntime": false,
+    "gatekeeperAssess": false,
+    "notarize": false,
+    "binaries": [
+      "Contents/Resources/node-runtime/bin/node"
+    ],
+    "extendInfo": {
+      "CFBundleDisplayName": "AIROOM Mac Beta"
+    },
+    "signIgnore": [
+      "node_modules/7zip-bin/mac/arm64/7za"
+    ]
+  },
+  "dmg": {
+    "sign": false,
+    "title": "AIROOM Mac Beta"
+  }
+}

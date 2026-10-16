@@ -328,7 +328,7 @@ export default function App() {
     <aside className="sidebar">
       <button type="button" className="brand" onClick={() => { setView('work'); setSessionId(''); }} title="回到团队主页">
         <span className="brand-mark" aria-hidden="true"><span /><span /><span /></span>
-        <span className="brand-text"><strong>AIROOM</strong><span>我们的 AI 工作室</span></span>
+        <span className="brand-text"><strong>AIROOM</strong><span>Mac Beta · 我们的 AI 工作室</span></span>
       </button>
 
       <div className="sidebar-scroll">

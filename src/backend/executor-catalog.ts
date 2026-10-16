@@ -8,6 +8,7 @@ import { ACP_DEFAULT_PERMISSIONS, isAcpId } from "../shared/defaults";
 import {
   CATALOG_REVISION,
   EXECUTOR_CATALOG,
+  supportsCatalogPlatform,
   ALL_EXECUTOR_CATALOG,
   catalogEntry,
   catalogProvider,
@@ -23,7 +24,7 @@ export function catalogStatuses(
   store: Store,
   settings: Settings,
 ): CatalogStatus[] {
-  return EXECUTOR_CATALOG.map((entry) => {
+  return EXECUTOR_CATALOG.filter(entry=>supportsCatalogPlatform(entry,process.platform)).map((entry) => {
     const provider = catalogProvider(entry.id),
       executor = isAcpId(provider)
         ? store.get<AcpExecutor>("executors", provider)

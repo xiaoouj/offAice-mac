@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { cp, readFile, rm, writeFile, stat } from 'node:fs/promises';
+import { cp, readFile, rm, writeFile, stat, chmod } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -56,11 +56,11 @@ export default async function afterPack(context) {
 }
 
 /** Copy the same production payload into an empty package or disposable desktop test app. */
-export async function copyProductionDependencies(appRoot) {
+export async function copyProductionDependencies(appRoot, platform='win32', arch='x64') {
   const lockBytes = await readFile(path.join(root, 'package-lock.json'));
   const lock = JSON.parse(lockBytes);
-  const manifest = { schemaVersion: 1, platform: 'win32', arch: 'x64', lockSha256: sha(lockBytes), packages: [], excluded: [], equivalentFiles: [] };
-  for (const [name, pkg] of productionPackages(lock)) {
+  const manifest = { schemaVersion: 1, platform, arch, lockSha256: sha(lockBytes), packages: [], excluded: [], equivalentFiles: [] };
+  for (const [name, pkg] of productionPackages(lock,platform,arch)) {
     const source = dependencyPath(root, name);
     try { await stat(path.join(source, 'package.json')); }
     catch (error) { if (pkg.optional && error.code === 'ENOENT') { manifest.excluded.push({path:name,reason:'optional package absent from source installation'});continue;}throw new Error('Required source dependency missing: ' + name); }
@@ -74,13 +74,15 @@ export async function copyProductionDependencies(appRoot) {
       // every package/license, while omitting its rendered and source help pages.
       if(name==='node_modules/npm'&&['docs','man'].includes(parts[0]))return false;
       if(name==='node_modules/7zip-bin'){
-        if(['linux','mac'].includes(parts[0]))return false;
-        if(parts[0]==='win'&&parts.length>1&&parts[1]!=='x64')return false;
+        const folder=platform==='darwin'?'mac':platform==='win32'?'win':'linux';
+        if(['win','linux','mac'].includes(parts[0])&&parts[0]!==folder)return false;
+        if(parts[0]===folder&&parts.length>1&&parts[1]!==arch)return false;
       }
       return true;
     }});
     if(name==='node_modules/7zip-bin'){
-      const binary='node_modules/7zip-bin/win/x64/7za.exe';
+      const binary=`node_modules/7zip-bin/${platform==='darwin'?'mac':platform==='win32'?'win':'linux'}/${arch}/7za${platform==='win32'?'.exe':''}`;
+      if(platform!=='win32')await chmod(dependencyPath(appRoot,binary),0o755);
       manifest.equivalentFiles.push({path:binary,sha256:sha(await readFile(dependencyPath(root,binary)))});
     }
     manifest.packages.push({path:name,version:pkg.version,packageJsonSha256:sha(bytes),peer:!!pkg.peer,optional:!!pkg.optional});

@@ -29,6 +29,7 @@ import { AUTOMATION_PAUSE_FILE } from '../shared/automation';
 import { BackupRestorer, recoverInterruptedRestore, RestoreFailure } from '../backend/backup-restore';
 import type { BackupEntry } from '../shared/backup';
 import { acceptRunningVersion, runningVersion } from './version';
+import { npmEntryForNode } from '../backend/node-runtime';
 
 // Check before touching user data, starting workers, or opening a login.
 try { assertNormalIntegrity(); }
@@ -40,13 +41,14 @@ catch (error) {
 
 const dist = path.dirname(fileURLToPath(import.meta.url));
 const root = path.dirname(dist);
+if(process.platform==='darwin')app.setName('AIROOM Mac Beta');
 // Avoid Electron's lazy userData lookup before configuring a writable profile.
 // User-profile storage avoids MSIX AppData redirection by desktop agent hosts.
-const dailyData = path.join(process.env.USERPROFILE || app.getPath('home'), '.airoom', 'data');
+const dailyData = path.join(process.env.USERPROFILE || app.getPath('home'), process.platform==='darwin'?'.airoom-mac-beta':'.airoom', 'data');
 const dataDirectory = process.env.AIROOM_DATA_DIR || (app.isPackaged ? dailyData : path.join(root, '.airoom'));
 // Electron's native instance lock is scoped to userData. Keep it stable across
 // development, packaged copies and launchers with different AIROOM_DATA_DIRs.
-const instanceDirectory = path.join(dailyData, 'electron');
+const instanceDirectory = path.join(process.env.AIROOM_DATA_DIR||dailyData, 'electron');
 mkdirSync(dataDirectory, { recursive: true });
 mkdirSync(instanceDirectory, { recursive: true });
 const startupLog = path.join(dataDirectory, 'startup.log');
@@ -87,11 +89,15 @@ process.env.AIROOM_CODEX_HOME = path.join(dataDirectory, 'native', 'codex', 'hom
 process.env.AIROOM_DSH_HOME = path.join(dataDirectory, 'native', 'dsh');
 process.env.AIROOM_CLAUDE_HOME = path.join(dataDirectory, 'native', 'claude');
 process.env.AIROOM_ACP_HOME = path.join(dataDirectory, 'native', 'acp');
-const nodeCandidates = [process.env.AIROOM_NODE_EXE, path.join(process.env.ProgramFiles || 'C:\\Program Files', 'nodejs', 'node.exe')];
-process.env.AIROOM_LOCAL_NODE_EXE = nodeCandidates.find(value => value && existsSync(value) && existsSync(path.join(path.dirname(value),'node_modules/npm/bin/npm-cli.js')));
-process.env.AIROOM_BUNDLED_NODE_EXE=process.execPath;
-process.env.AIROOM_BUNDLED_NODE_VERSION=process.versions.node;
-process.env.AIROOM_NODE_EXE=process.execPath;
+const nodeCandidates = [process.env.AIROOM_NODE_EXE, ...(process.platform==='darwin'?['/opt/homebrew/bin/node','/usr/local/bin/node']: [path.join(process.env.ProgramFiles || 'C:\\Program Files', 'nodejs', 'node.exe')])];
+process.env.AIROOM_LOCAL_NODE_EXE = nodeCandidates.find(value => value && existsSync(value) && !!npmEntryForNode(value));
+const macRuntime=path.join(process.resourcesPath,'node-runtime','bin','node');
+const bundledNode=process.platform==='darwin'&&app.isPackaged?macRuntime:process.execPath;
+if(!existsSync(bundledNode))throw new Error('随包 Node.js 运行环境缺失，请重新解压完整 Beta。');
+process.env.AIROOM_BUNDLED_NODE_EXE=bundledNode;
+process.env.AIROOM_BUNDLED_NODE_VERSION=bundledNode===macRuntime?'26.6.0':process.versions.node;
+process.env.AIROOM_NODE_EXE=bundledNode;
+if(process.platform==='darwin')process.env.PATH=[path.dirname(bundledNode),'/opt/homebrew/bin','/usr/local/bin',path.join(app.getPath('home'),'.local','bin'),process.env.PATH].filter(Boolean).join(path.delimiter);
 process.env.AIROOM_DATA_DIRECTORY=dataDirectory;
 
 let window: BrowserWindow | undefined;
@@ -136,7 +142,14 @@ function stopBackend() {
   backendReadiness.fail(backendGeneration,'执行服务已停止，请重启后端后核对记录。');
   // Kill the held UtilityProcess handle, never a potentially recycled PID.
   // Every guardian holds the worker's native parent handle and closes its Job on that parent's exit.
-  worker?.kill(); setBackendReady(false);
+  stopPosixGroups();worker?.kill(); setBackendReady(false);
+}
+function stopPosixGroups(){
+  if(process.platform==='win32')return;
+  for(const info of guardians.values()){
+    try{process.kill(-info.pid,'SIGKILL');}catch{}
+  }
+  guardians.clear();
 }
 async function emergencyStop() {
   loginBrowserGate.clear();
@@ -157,7 +170,7 @@ function secretFile() { return path.join(dataDirectory, 'deepseek.secret'); }
 function claudeTokenFile() { return path.join(dataDirectory, 'claude-token.secret'); }
 const claudeApiFile=()=>path.join(dataDirectory,'secrets','claude-api.secret');
 function storedClaudeApiKey(){
-  if(!safeStorage.isEncryptionAvailable()||!existsSync(claudeApiFile()))return;
+  if(!existsSync(claudeApiFile())||!safeStorage.isEncryptionAvailable())return;
   try{const value=safeStorage.decryptString(readFileSync(claudeApiFile()));registerSecret(value);return value;}catch{return;}
 }
 function storedClaudeToken(): string | undefined {
@@ -231,7 +244,7 @@ function startBackend() {
     if(worker!==ownWorker||port!==ownPort||!backendReadiness.current(generation))return;
     const packet = event.data;
     if (packet.id) { const item = pending.get(packet.id); if (!item) return; clearTimeout(item.timer); pending.delete(packet.id);const duration=Date.now()-item.startedAt;if(duration>=1500)logStartup(`rpc-slow method=${item.method} durationMs=${duration} outcome=${packet.error?'failed':'completed'} generation=${generation}`); packet.error ? item.reject(new Error(packet.error)) : item.resolve(packet.result); return; }
-    if (packet.type === 'ownership') { packet.info.closed ? guardians.delete(packet.info.pid) : guardians.set(packet.info.pid, packet.info); return; }
+    if (packet.type === 'ownership') { if(packet.info.closed)guardians.delete(packet.info.pid);else if(packet.info.ownerPid===ownWorker.pid)guardians.set(packet.info.pid,packet.info);return; }
     if (packet.type === 'ready') {if(!backendReadiness.markReady(generation))return;setBackendReady(true);logStartup(`backend-ready generation=${generation} pid=${ownWorker.pid}`);push({ type: 'backend', ready: true }); notifyRoomVisibility(); void checkConnectivity(); void tidyAcpSecrets(); return; }
     if (packet.type === 'push') { if(packet.event.type==='executor-login'){const url=loginBrowserGate.accept(packet.event.id,packet.event.state);if(url)void shell.openExternal(url).catch(()=>push({type:'backend',ready,message:'官方授权页未能打开，请点击“打开官方授权页面”重试。'}));return;}if (packet.event.type === 'snapshot') {lastSnapshot={...(lastSnapshot?acceptSnapshot(lastSnapshot,packet.event.snapshot):packet.event.snapshot),backendReady:ready};push({...packet.event,snapshot:lastSnapshot});}
       else if(packet.event.type==='snapshot-patch'){
@@ -245,7 +258,7 @@ function startBackend() {
     logStartup(`backend-exit generation=${generation} pid=${ownWorker.pid} code=${code} current=${worker===ownWorker}`);
     if(worker!==ownWorker||port!==ownPort)return;
     backendReadiness.fail(generation,'执行服务已退出，请重启后端并核对中断记录。');
-    setBackendReady(false); guardians.clear();
+    stopPosixGroups();setBackendReady(false); guardians.clear();
     for (const item of pending.values()) { clearTimeout(item.timer); item.reject(new Error('执行服务已退出；未自动重发任务')); } pending.clear();
     if (!quitting) push({ type: 'backend', ready: false, message: '执行服务已退出；重新打开应用后核对中断记录。' });
   });
@@ -514,8 +527,8 @@ function registerIpc() {
       shell.showItemInFolder(file); return { shown: true };
     }
     // The running build and its deployment record sit next to AIROOM.exe.
-    if (method === 'app.version') return runningVersion(path.dirname(process.execPath), app.isPackaged);
-    if (method === 'app.accept') return acceptRunningVersion(path.dirname(process.execPath), app.isPackaged);
+    if (method === 'app.version') return runningVersion(process.platform==='darwin'?process.resourcesPath:path.dirname(process.execPath), app.isPackaged);
+    if (method === 'app.accept') return acceptRunningVersion(process.platform==='darwin'?process.resourcesPath:path.dirname(process.execPath), app.isPackaged);
     if (method === 'attachment.save') {
       const id=params?.id,name=typeof params?.name==='string'?params.name:'';
       if(!isAttachmentId(id)||!name||safeAttachmentName(name)!==name||!/\.(png|jpe?g|webp|gif)$/i.test(name))throw new Error('图片无效');
@@ -576,7 +589,7 @@ function notifyRoomVisibility(){
 function createWindow() {
   const iconPath=path.join(dist,'airoom.ico'),icon=nativeImage.createFromPath(path.join(dist,'airoom.png'));
   if (icon.isEmpty()) throw new Error('AIROOM 窗口图标缺失，请使用完整程序包。');
-  window = new BrowserWindow({ width: 1480, height: 970, minWidth: 1000, minHeight: 700, title: 'AIROOM', icon, backgroundColor: nativeTheme.shouldUseDarkColors ? '#1a1613' : '#f6f0e7', show: false, webPreferences: { preload: path.join(dist, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
+  window = new BrowserWindow({ width: 1480, height: 970, minWidth: 1000, minHeight: 700, title: process.platform==='darwin'?'AIROOM · Mac Beta':'AIROOM', icon, backgroundColor: nativeTheme.shouldUseDarkColors ? '#1a1613' : '#f6f0e7', show: false, webPreferences: { preload: path.join(dist, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
   if(process.platform==='win32')window.setAppDetails({appId:'local.airoom.desktop',appIconPath:iconPath,appIconIndex:0,relaunchCommand:app.isPackaged?`"${process.execPath}"`:`"${process.execPath}" "${root}"`,relaunchDisplayName:'AIROOM'});
   window.setMenuBarVisibility(false);
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -592,6 +605,16 @@ function createTray() {
   tray = new Tray(nativeImage.createFromPath(path.join(dist,'airoom.png')).resize({width:16,height:16})); tray.setToolTip('AIROOM');
   tray.setContextMenu(Menu.buildFromTemplate([{ label: '打开工作台', click: () => showMainWindow('tray-menu') }, { label: '停止所有成员', click: () => { void emergencyStop(); } }, { type: 'separator' }, { label: '退出 AIROOM', click: () => app.quit() }]));
   tray.on('double-click', () => showMainWindow('tray-double-click'));
+}
+function createMacMenu(){
+  if(process.platform!=='darwin')return;
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    {label:'AIROOM Mac Beta',submenu:[{role:'about'},{type:'separator'},{label:'打开工作台',click:()=>showMainWindow('app-menu')},{type:'separator'},{role:'services'},{type:'separator'},{role:'hide'},{role:'hideOthers'},{role:'unhide'},{type:'separator'},{role:'quit'}]},
+    {label:'编辑',submenu:[{role:'undo'},{role:'redo'},{type:'separator'},{role:'cut'},{role:'copy'},{role:'paste'},{role:'selectAll'}]},
+    {label:'显示',submenu:[{role:'resetZoom'},{role:'zoomIn'},{role:'zoomOut'},{type:'separator'},{role:'togglefullscreen'}]},
+    {label:'窗口',submenu:[{role:'minimize'},{role:'zoom'},{label:'打开工作台',click:()=>showMainWindow('window-menu')}]},
+  ]));
+  app.setAboutPanelOptions({applicationName:'AIROOM Mac Beta',applicationVersion:app.getVersion(),credits:'macOS Apple 芯片测试版；资料独立保存在 ~/.airoom-mac-beta。'});
 }
 // Uploaded portraits and avatars are served read-only from the asset store, by name only.
 protocol.registerSchemesAsPrivileged([{ scheme: 'airoom-asset', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
@@ -613,10 +636,11 @@ app.setAppUserModelId('local.airoom.desktop');
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
   app.on('second-instance', () => showMainWindow('second-instance'));
-  app.whenReady().then(async () => { await recoverInterruptedRestore(dataDirectory);serveAssets(); registerIpc(); createWindow(); createTray(); startBackend(); powerMonitor.on('resume', () => { void checkConnectivity(); }); }).catch(startupFailed);
+  app.on('activate',()=>showMainWindow('dock-activate'));
+  app.whenReady().then(async () => { await recoverInterruptedRestore(dataDirectory);serveAssets(); registerIpc();createMacMenu(); createWindow(); createTray(); startBackend(); powerMonitor.on('resume', () => { void checkConnectivity(); }); }).catch(startupFailed);
   app.on('before-quit', event => {
     if(restoring){event.preventDefault();quitAfterRestore=true;return;}
     if (quitting) return; event.preventDefault(); quitting = true;
-    void (async () => { await emergencyStop(); if (ready) try { await request('internal.close', {}, 5000); } catch { stopBackend(); } tray?.destroy(); app.exit(0); })();
+    void (async () => { await emergencyStop(); if (ready) try { await request('internal.close', {}, 5000); } catch { stopBackend(); }stopPosixGroups(); tray?.destroy(); app.exit(0); })();
   });
 }

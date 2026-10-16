@@ -1,0 +1,85 @@
+name: Publish Mac Beta
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/mac-beta-release.yml']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mac-beta-release
+  cancel-in-progress: false
+
+jobs:
+  build-and-release:
+    runs-on: macos-15
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - name: Check out release source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Install verified Node.js 26.6.0 arm64
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = arm64
+          node_dir="$RUNNER_TEMP/airoom-node"
+          mkdir -p "$node_dir"
+          curl --fail --location --retry 3 https://nodejs.org/dist/v26.6.0/node-v26.6.0-darwin-arm64.tar.gz -o "$node_dir/node.tar.gz"
+          printf '%s  %s\n' '75480cd43b6fcb35d8e772dd18983fbd9f691b2f03b1c94393206098e9944b5e' "$node_dir/node.tar.gz" | shasum -a 256 -c -
+          tar -xzf "$node_dir/node.tar.gz" -C "$node_dir"
+          printf '%s\n' "$node_dir/node-v26.6.0-darwin-arm64/bin" >> "$GITHUB_PATH"
+
+      - name: Install locked dependencies
+        run: |
+          npm ci --no-audit --no-fund
+          node node_modules/electron/install.js
+
+      - name: Verify source and Mac behavior
+        run: |
+          npm run typecheck
+          npm run test:mac
+
+      - name: Build Mac installers
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npm run package:mac
+
+      - name: Verify package and prepare release files
+        shell: bash
+        run: |
+          set -euo pipefail
+          codesign --verify --deep --strict 'release-mac/mac-arm64/AIROOM Mac Beta.app'
+          node --input-type=module -e 'import {verifyRuntimeDependencies} from "./scripts/runtime-dependencies.mjs"; console.log(await verifyRuntimeDependencies("release-mac/mac-arm64/AIROOM Mac Beta.app/Contents/Resources/app"));'
+          mkdir -p release-assets
+          cp release-mac/*.dmg release-mac/*.zip release-assets/
+          cp README-MAC-BETA.md release-assets/Mac-Beta-Readme.md
+          cp docs/releases/local-beta-test-results.json release-assets/Local-Beta-Test-Results.json
+          git archive --format=zip --prefix=offAice-mac/ -o release-assets/offAice-mac-source.zip HEAD
+          cd release-assets
+          shasum -a 256 ./* > SHA256SUMS.txt
+
+      - name: Publish complete prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(node -p 'JSON.parse(require("node:fs").readFileSync("package.json", "utf8")).version')
+          tag="mac-v$version"
+          notes="docs/releases/$tag.md"
+          test -f "$notes"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json isDraft >/dev/null 2>&1; then
+            echo "Release $tag already exists; refusing to overwrite its files."
+            exit 1
+          fi
+          gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --prerelease --title "AIROOM Mac Beta $version (Apple Silicon)" --notes-file "$notes"
+          gh release upload "$tag" release-assets/* --repo "$GITHUB_REPOSITORY"
+          gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease --latest=false
