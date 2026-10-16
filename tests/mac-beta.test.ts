@@ -44,7 +44,8 @@ test('stopping a task kills a resistant grandchild after the direct child has ex
     grandchild=await new Promise<number>((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('child startup timeout')),5000);child.stdout!.once('data',data=>{clearTimeout(timer);resolve(Number(String(data).trim()));});child.once('error',reject);});
     assert.ok(grandchild>0);
     await stopOwned(child,200);
-    assert.throws(()=>process.kill(grandchild!,0),{code:'ESRCH'});
+    const remaining=spawnSync('/bin/ps',['-p',String(grandchild),'-o','stat='],{encoding:'utf8'});
+    assert.ok(remaining.status===1||(remaining.status===0&&remaining.stdout.trim().startsWith('Z')),'grandchild must be exited, even if the OS has not reaped it yet');
   }finally{
     if(grandchild)try{process.kill(grandchild,'SIGKILL');}catch{}
     await rm(root,{recursive:true,force:true});

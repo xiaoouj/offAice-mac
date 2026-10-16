@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess, type SpawnOptions } from 'node:child_process';
+import { spawn, spawnSync, type ChildProcess, type SpawnOptions } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -39,12 +39,38 @@ export async function stopOwned(child:ChildProcess,timeoutMs=10000):Promise<void
   if (!ownership || child.exitCode!==null || child.signalCode!==null) return;
   const deadline=Math.max(100,Math.min(timeoutMs,60000));
   if(process.platform!=='win32'){
-    const alive=()=>{try{process.kill(-ownership.pid,0);return true;}catch(error){if((error as NodeJS.ErrnoException).code==='ESRCH')return false;throw error;}};
+    const alive=()=>{
+      try{process.kill(-ownership.pid,0);return true;}
+      catch(error){
+        const code=(error as NodeJS.ErrnoException).code;
+        if(code==='ESRCH')return false;
+        // Darwin can retain an exited process group until launchd reaps its
+        // zombies. Confirm that no live members remain before accepting EPERM.
+        if(code==='EPERM'&&process.platform==='darwin'){
+          const snapshot=spawnSync('/bin/ps',['-axo','pgid=,stat='],{encoding:'utf8',timeout:2000,maxBuffer:1024*1024});
+          if(snapshot.status===0){
+            const members=snapshot.stdout.trim().split('\n').map(line=>line.trim().split(/\s+/)).filter(([group])=>Number(group)===ownership.pid);
+            return members.some(([,state])=>!state?.startsWith('Z'));
+          }
+        }
+        throw error;
+      }
+    };
+    const signal=(value:NodeJS.Signals)=>{
+      try{process.kill(-ownership.pid,value);}
+      catch(error){
+        const code=(error as NodeJS.ErrnoException).code;
+        // Do not treat a partial group-signal result as confirmation: the
+        // bounded liveness checks below still require every live member to exit.
+        if(code==='ESRCH'||(code==='EPERM'&&process.platform==='darwin'))return;
+        throw error;
+      }
+    };
     if(!alive())return;
-    process.kill(-ownership.pid,'SIGTERM');
+    signal('SIGTERM');
     const until=Date.now()+deadline;
     while(alive()&&Date.now()<until)await new Promise(resolve=>setTimeout(resolve,50));
-    if(alive())process.kill(-ownership.pid,'SIGKILL');
+    if(alive())signal('SIGKILL');
     const forcedUntil=Date.now()+2000;
     while(alive()&&Date.now()<forcedUntil)await new Promise(resolve=>setTimeout(resolve,50));
     if(alive())throw new Error(`进程组 ${ownership.pid} 停止尚未得到确认，请核对进程状态。`);

@@ -42,7 +42,7 @@ jobs:
           npm ci --no-audit --no-fund
           node node_modules/electron/install.js
 
-      - name: Verify source and Mac behavior
+      - name: Verify source and Mac lifecycle
         run: |
           npm run typecheck
           npm run build
