@@ -51,7 +51,7 @@ jobs:
       - name: Build Mac installers
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-        run: npm run package:mac
+        run: npm run package:mac -- --publish never
 
       - name: Verify package and prepare release files
         shell: bash
