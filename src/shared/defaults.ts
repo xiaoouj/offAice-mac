@@ -1,6 +1,7 @@
 import type { AcpExecutor, AcpExecutorId, MemberPermissions, MemberProfile, PermissionMember, Settings, ProviderId, UserProfile } from './types';
 import { activeMemoryText, memoryEntries, normalizeMemories } from './memory';
 import { normalizeLife, relationLines } from './life';
+import { normalizeApiConnection } from './api-connection';
 export const PROVIDER_NAMES: Record<ProviderId,string> = { codex:'Codex', claude:'Claude', dsh:'DeepSeek Harness', deepseek:'DeepSeek API' };
 export const isAcpId = (id: unknown): id is AcpExecutorId => typeof id === 'string' && /^acp-[a-z0-9]{8,32}$/.test(id);
 /** Connected programs show their own name wherever a built-in executor's name would appear. */
@@ -30,6 +31,11 @@ export function normalizeExecutor(value: unknown, existing?: AcpExecutor, newId?
   const text = (input: unknown, max: number) => typeof input === 'string' ? input.trim().slice(0, max) : '';
   const name = text(source.name, 40) || existing?.name || '';
   if (!name) throw new Error('请给这个 AI 程序起个名字');
+  if (source.api) {
+    if(existing && !existing.api)throw new Error('请新建 API 连接，保留原程序的连接和登录。');
+    const api=normalizeApiConnection(source.api);
+    return {id:existing?.id??newId!,name,api,command:'',args:[],env:{},permissions:{commands:'deny',fileScope:'workspace',network:true},model:text(source.model,200)||undefined,createdAt:existing?.createdAt??new Date().toISOString()};
+  }
   const command = text(source.command, 1024);
   if (!command) throw new Error('请填写程序路径');
   const args = (Array.isArray(source.args) ? source.args : typeof source.args === 'string' ? splitArgs(source.args) : []).map(item => String(item)).filter(Boolean).slice(0, 40).map(item => item.slice(0, 1024));

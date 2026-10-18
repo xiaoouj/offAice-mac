@@ -1,4 +1,5 @@
 import { ModelPicker } from './model-picker';
+import { ApiConnectionCard } from './api-connections';
 import { connectionLabel } from '../shared/executor-connection';
 import { executorPermissions } from '../shared/permissions';
 import { CatalogLogin, CatalogVersionPanel } from './executor-catalog';
@@ -34,6 +35,7 @@ const COMMANDS: { id: MemberPermissions['commands']; label: string }[] = [{ id: 
 
 /** A connected program in settings: checked, signed in and configured like the built-in executors. */
 export function AcpConnection({ executor, info, snapshot, invoke, notify, settings, setSettings }: { settings: Settings; setSettings: (update: (previous: Settings) => Settings) => void; executor: AcpExecutor; info?: ProviderInfo; snapshot: Snapshot; invoke: Invoke; notify: Notify }) {
+  if(executor.api)return <ApiConnectionCard executor={executor} info={info} snapshot={snapshot} invoke={invoke} notify={notify} setSettings={setSettings}/>;
   const team = useTeam();
   const users = team.members.filter(member => member.executor === executor.id);
   const [editing, setEditing] = useState(false);

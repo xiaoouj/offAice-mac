@@ -60,7 +60,7 @@ export function versionText(provider?: ProviderInfo) {
 export function runnable(provider?: ProviderInfo) {
   if (!provider?.available || provider.stale) return false;
   // External programs may report an account or an explicitly identified subscription.
-  if (isAcpId(provider.id)) return provider.auth === 'account' || provider.auth === 'subscription';
+  if (isAcpId(provider.id)) return ['account','subscription','api'].includes(provider.auth);
   return provider.id === 'claude' ? ['subscription','api'].includes(provider.auth) : provider.id === 'codex' ? provider.auth === 'subscription' : provider.id === 'dsh' ? provider.auth === 'account' : provider.auth === 'api';
 }
 

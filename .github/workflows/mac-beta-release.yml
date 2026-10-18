@@ -48,6 +48,7 @@ jobs:
           npm run build
           npm run test:mac
           npm run test:reply
+          npm run test:api
 
       - name: Build Mac installers
         env:
@@ -65,6 +66,7 @@ jobs:
           cp README-MAC-BETA.md release-assets/Mac-Beta-Readme.md
           cp docs/releases/local-beta-test-results.json release-assets/Local-Beta-1-Test-Results.json
           cp docs/releases/reply-timeout-beta-test-results.json release-assets/Reply-Timeout-Results.json
+          cp docs/releases/api-beta-test-results.json release-assets/API-Connection-Results.json
           git archive --format=zip --prefix=offAice-mac/ -o release-assets/offAice-mac-source.zip HEAD
           cd release-assets
           shasum -a 256 ./* > SHA256SUMS.txt

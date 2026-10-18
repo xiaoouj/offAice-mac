@@ -1,0 +1,54 @@
+{
+  "version": "0.1.0-beta.4",
+  "scope": "Isolated regression and loopback API fixtures; no real API account or paid generation.",
+  "typecheck": "passed",
+  "regression": {
+    "total": 16,
+    "passed": 16,
+    "newApiTests": 7
+  },
+  "desktop": {
+    "scope": "Isolated desktop and loopback API fixtures; no real API account or paid request.",
+    "checks": [
+      "StepFun and Gemini presets; save API connection and create member entirely through UI",
+      "Both API protocols send and render a real loopback streaming response through the engine",
+      "Existing key stays masked and survives editing; changing destination requires a key; model listing works without generation",
+      "Restart restores connections and encrypted credentials; no key in snapshot, SQLite or encrypted file; no renderer exceptions"
+    ],
+    "ok": true,
+    "rendererErrors": []
+  },
+  "supportedProtocols": [
+    "OpenAI Chat Completions",
+    "Gemini Generate Content SSE"
+  ],
+  "keyStorage": "Electron safeStorage; restart, snapshot, SQLite and encrypted-file checks passed",
+  "limitations": [
+    "Text chat and discussion only; no filesystem or terminal tools and no images.",
+    "Responses-only services not supported.",
+    "No real provider key, account entitlement, quota or billing was tested."
+  ],
+  "packagedDesktop": {
+    "scope": "Isolated desktop and loopback API fixtures; no real API account or paid request.",
+    "checks": [
+      "StepFun and Gemini presets; save API connection and create member entirely through UI",
+      "Both API protocols send and render a real loopback streaming response through the engine",
+      "Existing key stays masked and survives editing; changing destination requires a key; model listing works without generation",
+      "Restart restores connections and encrypted credentials; no key in snapshot, SQLite or encrypted file; no renderer exceptions"
+    ],
+    "ok": true,
+    "rendererErrors": []
+  },
+  "retainedBehavior": {
+    "scope": "Isolated desktop settings; no model request or real account.",
+    "checks": [
+      "WorkBuddy experiment UI removed and former IPC endpoint rejected",
+      "fresh profile shows 300-second chat inactivity setting and bounded-wait explanation",
+      "custom chat inactivity value saves through UI and persists after app restart",
+      "network route guidance visible; no renderer exceptions"
+    ],
+    "ok": true,
+    "rendererErrors": []
+  },
+  "strictCodesignVerification": "passed"
+}

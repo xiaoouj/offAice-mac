@@ -3,6 +3,7 @@
 > **macOS Apple 芯片 Beta**：本仓库是 [tonyAmadeus/offAice](https://github.com/tonyAmadeus/offAice) 的 Mac 适配版。
 > [下载 Mac Beta（Releases）](https://github.com/xiaoouj/offAice-mac/releases) · [安装与已知限制](README-MAC-BETA.md)
 > 支持 macOS 13+、arm64，随包附带 Node.js。测试版未经过 Apple 公证，真实账号和多人任务仍需验收。
+> **Beta.4 新增软件内 API 连接**：在“设置与连接 → 连接与版本 → 添加 API 连接”填写地址、密钥和模型，支持 OpenAI 兼容接口（含阶跃、自定义服务）及 Gemini 原生接口，可保存多条连接并创建人物卡。密钥在本机加密；此版 API 成员用于文字聊天和团队讨论，不执行命令或读写文件。
 > **Beta.3 已移除 WorkBuddy 实验功能，并修复聊天超时体验**：聊天等待默认延长至 300 秒并可配置，明确显示 Codex 网络重连，区分系统代理与 TUN。真实 GPT 在本机切换到可用显式代理后已恢复回复；更新不会自动切换你的网络出口。
 
 AIROOM 是一个装在自己电脑上的“AI 工作室”。

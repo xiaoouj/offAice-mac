@@ -23,6 +23,7 @@ export function withCompatibility<T>(report: CompatibilityReport, action:()=>Pro
   return context.run({report,expected},action);
 }
 export function currentIdentity(){const value=context.getStore()?.report.identity;return value?.path?{...value}:undefined;}
+export function observeApiConnection(protocol:string,baseUrl:string){const value=context.getStore()?.report.identity;if(value){value.protocol='http';value.protocolVersion=protocol;value.argumentsDigest=createHash('sha256').update(baseUrl).digest('hex');}}
 export function observeAccount(account:string){const scope=context.getStore();if(scope)scope.report.account=account;}
 export function observeVersion(version:string){
   const scope=context.getStore();if(!scope)return;

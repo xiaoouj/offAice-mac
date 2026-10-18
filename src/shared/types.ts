@@ -13,6 +13,8 @@ export interface MemberPermissions {
 }
 export type PermissionMember = 'codex' | 'claude' | 'dsh' | AcpExecutorId;
 export interface AcpExecutor {
+  /** Direct HTTP connection; no local executable is launched. */
+  api?: import('./api-connection').ApiConnection;
   id: AcpExecutorId;
   /** Shown wherever the built-ins show "Claude", "Codex" or "DeepSeek Harness". */
   name: string;

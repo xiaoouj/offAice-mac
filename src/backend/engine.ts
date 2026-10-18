@@ -1736,6 +1736,7 @@ export class Engine {
     throw new Error("成员无效");
   }
   private externalAdapter(executor: AcpExecutor) {
+    if(executor.api)return new ApiAdapter(this.withSecrets(executor),this.store.dataDirectory);
     return executor.catalogId &&
       catalogEntry(executor.catalogId).adapter === "zcode"
       ? new ZcodeAdapter(this.withSecrets(executor))
@@ -3345,7 +3346,7 @@ export class Engine {
         executor.secretKeys = Object.keys(secrets).sort();
         this.acpSecrets.set(executor.id, secrets);
         this.store.put("executors", executor.id, executor);
-        this.settings = { ...this.settings, permissions: { ...this.settings.permissions, [executor.id]: executor.permissions } };
+        this.settings = { ...this.settings, permissions: { ...this.settings.permissions, [executor.id]: executor.permissions },...(executor.api?{models:{...this.settings.models,[executor.id]:executor.model}}:{}) };
         this.store.put("settings", "main", this.settings);
         rememberExecutors(this.store.executors());
         await this.invalidateRuntimes(executor.id);
@@ -3411,6 +3412,7 @@ export class Engine {
         if (this.acpLogins.has(executor.id))
           throw new Error("登录正在进行，请在已打开的页面里完成");
         const adapter = this.externalAdapter(executor);
+        if(adapter instanceof ApiAdapter)throw new Error('API 连接请在连接设置中保存 API Key，无需浏览器登录。');
         this.acpLogins.add(executor.id);
         this.executorLoginAdapters.set(executor.id, adapter);
         this.executorLoginStates.set(executor.id, {
@@ -7290,3 +7292,4 @@ export class Engine {
     return this.closing;
   }
 }
+import { ApiAdapter } from './adapters/api';

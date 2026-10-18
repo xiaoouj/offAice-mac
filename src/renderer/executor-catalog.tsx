@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { ApiConnectionEditor } from './api-connections';
 import { Download, KeyRound, LoaderCircle, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { CATALOG_REVISION, EXECUTOR_CATALOG, catalogEntry, catalogProvider, type CatalogId, type CatalogStatus, type NodeRuntimeInfo, type CatalogLoginState } from '../shared/executor-catalog';
 import type { AcpExecutor, PermissionMember, Snapshot } from '../shared/types';
@@ -17,7 +18,7 @@ function readLoginStatus(invoke:Invoke,id:string){
   const task=invoke<CatalogLoginState|undefined>('executor.loginStatus',{id},undefined,{background:true}).finally(()=>{if(reads!.get(id)===task)reads!.delete(id);});reads.set(id,task);return task;
 }
 export function ExecutorCatalog({snapshot,invoke,notify,beforeOperation,onSelected,onNewMember}:{snapshot:Snapshot;invoke:Invoke;notify:Notify;beforeOperation:()=>Promise<void>;onSelected:(item:CatalogStatus)=>void;onNewMember:(provider:PermissionMember)=>void}){
-  const [view,setView]=useState<'closed'|'catalog'|'manual'>(!snapshot.providers.some(item=>item.path)?'catalog':'closed'),[items,setItems]=useState<CatalogStatus[]>([]),[selected,setSelected]=useState<CatalogId>(),[loading,setLoading]=useState(true),[loadError,setLoadError]=useState(''),[progressError,setProgressError]=useState('');
+  const [view,setView]=useState<'closed'|'catalog'|'manual'|'api'>(!snapshot.providers.some(item=>item.path)?'catalog':'closed'),[items,setItems]=useState<CatalogStatus[]>([]),[selected,setSelected]=useState<CatalogId>(),[loading,setLoading]=useState(true),[loadError,setLoadError]=useState(''),[progressError,setProgressError]=useState('');
   const [version,setVersion]=useState(''),[agree,setAgree]=useState(false),[busy,setBusy]=useState(''),[progress,setProgress]=useState<MemberInstallation>(),[result,setResult]=useState('');
   const [draft,setDraft]=useState(emptyAcpDraft);
   const reload=useCallback(async()=>{setLoading(true);setLoadError('');try{const value=await invoke<CatalogReply>('catalog.list',undefined,undefined,{background:true});if(!value||!Array.isArray(value.items))throw new Error('执行端清单暂未返回。');setItems(value.items);return value.items;}catch(error){setLoadError((error as Error).message);throw error;}finally{setLoading(false);}},[invoke]);
@@ -44,7 +45,9 @@ export function ExecutorCatalog({snapshot,invoke,notify,beforeOperation,onSelect
   const info=snapshot.providers.find(info=>info.id===provider),executor=snapshot.executors?.find(executor=>executor.id===provider);
   return <section className="catalog-settings" data-provider="catalog" aria-label="添加执行端">
     <div className="settings-section-heading"><h3>添加执行端</h3></div>
-    <p className="settings-description">选择官方程序，下载到 AIROOM 后再登录。已有安装可以继续使用。</p>
+    <p className="settings-description">连接本机 AI 程序，或直接填写服务地址和 API Key。</p>
+    <button type="button" className="button primary" disabled={!!busy} onClick={()=>setView(view==='api'?'closed':'api')}>添加 API 连接</button>
+    {view==='api'&&<ApiConnectionEditor invoke={invoke} onCancel={()=>setView('closed')} onSaved={saved=>{setView('closed');notify('API 连接已加密保存；可先创建人物卡，再在连接设置中读取模型或填写默认模型。');onNewMember(saved.id);}}/>}
     <div className="catalog-actions"><button className="button secondary" onClick={()=>setView(view==='catalog'?'closed':'catalog')} disabled={!!busy}><Download size={14}/>从清单添加</button><button className="button quiet" onClick={()=>setView(view==='manual'?'closed':'manual')} disabled={!!busy}><Plus size={14}/>手动添加</button></div>
     {view==='manual'&&<div className="catalog-detail"><AcpFields value={draft} onChange={setDraft} invoke={invoke}/><button className="button primary" disabled={!!busy||!snapshot.backendReady||!draft.command.trim()||!draft.name.trim()} onClick={()=>void manual()}>保存连接并创建人物卡</button></div>}
     {view==='catalog'&&<div className="catalog-detail">
