@@ -1,6 +1,6 @@
 {
   "name": "airoom",
-  "version": "0.1.0-beta.4",
+  "version": "0.1.0-beta.5",
   "private": true,
   "description": "本地多成员 AI 工作台",
   "main": "dist/main.mjs",

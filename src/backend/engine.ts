@@ -699,8 +699,8 @@ export class Engine {
     this.memberWorkspaces = new MemberWorkspaces(this.store, {
       createSession: (projectId, member, title, write) =>
         this.createSession(projectId, member.executor, title, write, member.id),
-      send: (sessionId, text, attachments) =>
-        this.send(sessionId, text, "message", undefined, attachments),
+      send: (sessionId, text, attachments, intent) =>
+        this.send(sessionId, text, intent, undefined, attachments),
       reply: (roomId, member, prompt, attachments, onRun, shouldStart) =>
         this.rooms.run(roomId, async () => {
           const session = await this.loungeSession(member, "room-mention");

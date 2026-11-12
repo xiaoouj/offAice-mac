@@ -7,13 +7,22 @@ import {isolatedTestEnvironment} from './test-environment.mjs';
 
 const root=process.cwd(),profile=isolatedTestEnvironment(process.env,root),output=path.resolve(process.argv[3]??'.test-cache/api-desktop');
 await mkdir(output,{recursive:true});
+const held=new Map();
 const key='local-api-desktop-fixture-secret-789123',errors=[],requests=[],results={scope:'Isolated desktop and loopback API fixtures; no real API account or paid request.',checks:[]};
 const server=createServer(async(req,res)=>{
   if(req.headers.authorization!==`Bearer ${key}`&&req.headers['x-goog-api-key']!==key){res.writeHead(401);res.end();return;}
   const gemini=req.url.startsWith('/gemini');
   if(req.method==='GET'){res.setHeader('content-type','application/json');res.end(JSON.stringify(gemini?{models:[{name:'models/fixture-model',displayName:'Fixture Gemini',supportedGenerationMethods:['generateContent']}]}:{data:[{id:'fixture-model'}]}));return;}
-  let text='';for await(const chunk of req)text+=chunk;requests.push({gemini,body:JSON.parse(text)});
+  let text='';for await(const chunk of req)text+=chunk;const body=JSON.parse(text);requests.push({gemini,body});
+  const input=body.messages?.at(-1)?.content?.match(/DESK_SMOKE_[A-Z_]+/)?.[0];
   res.writeHead(200,{'content-type':'text/event-stream'});
+  if(input?.startsWith('DESK_SMOKE_HOLD')){
+    const chunk={model:'fixture-model',choices:[{delta:{content:'已收到部分回复 '+input}}]};
+    res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+    held.set(input,()=>res.end('data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n'));
+    res.on('close',()=>held.delete(input));
+    return;
+  }
   const packet=gemini?{modelVersion:'fixture-model',candidates:[{content:{parts:[{text:'Gemini fixture connected'}]},finishReason:'STOP'}]}:{model:'fixture-model',choices:[{delta:{content:'OpenAI fixture connected'},finish_reason:'stop'}]};
   res.end(`data: ${JSON.stringify(packet)}\n\n${gemini?'':'data: [DONE]\n\n'}`);
 });
@@ -63,6 +72,37 @@ try{
   for(const name of (await readdir(env.AIROOM_DATA_DIR)).filter(name=>/sqlite/.test(name))){assert.ok(!(await readFile(path.join(env.AIROOM_DATA_DIR,name))).includes(Buffer.from(key)));}
   assert.deepEqual(errors,[]);assert.equal(requests.filter(item=>item.gemini).length,1);assert.equal(requests.filter(item=>!item.gemini).length,1);
   results.checks.push('Restart restores connections and encrypted credentials; no key in snapshot, SQLite or encrypted file; no renderer exceptions');
-  await page.screenshot({path:path.join(output,'API连接列表.png'),animations:'disabled'});results.ok=true;console.log(JSON.stringify(results,null,2));
+  await page.screenshot({path:path.join(output,'API连接列表.png'),animations:'disabled'});
+  if(process.argv.includes('--desk-interruption')){
+    await page.getByRole('button',{name:'关闭对话框',exact:true}).click();
+    await page.getByRole('button',{name:'Test API 的工位',exact:true}).click();
+    const input=page.getByRole('textbox',{name:'在工位里说话',exact:true});
+    const send=page.getByRole('button',{name:'发送到工位',exact:true});
+    const submit=async text=>{await input.fill(text);await send.click();};
+    const untilReceived=token=>page.getByText('已收到部分回复 '+token,{exact:true}).waitFor();
+    const sentTokens=()=>requests.flatMap(r=>r.body.messages?.at(-1)?.content?.match(/DESK_SMOKE_[A-Z_]+/)??[]);
+    await submit('DESK_SMOKE_HOLD_FIRST');
+    await untilReceived('DESK_SMOKE_HOLD_FIRST');
+    await input.fill('DESK_SMOKE_FOLLOWUP');await input.press('Enter');
+    await page.getByText('等待处理',{exact:true}).waitFor();
+    assert.deepEqual(sentTokens(),['DESK_SMOKE_HOLD_FIRST']);
+    held.get('DESK_SMOKE_HOLD_FIRST')();
+    await page.getByText('OpenAI fixture connected',{exact:true}).nth(1).waitFor();
+    assert.deepEqual(sentTokens(),['DESK_SMOKE_HOLD_FIRST','DESK_SMOKE_FOLLOWUP']);
+    await submit('DESK_SMOKE_HOLD_SECOND');
+    await untilReceived('DESK_SMOKE_HOLD_SECOND');
+    await submit('DESK_SMOKE_WITHDRAW');
+    await page.getByText('等待处理',{exact:true}).waitFor();
+    await input.fill('DESK_SMOKE_REPLACE');
+    await page.screenshot({path:path.join(output,'工位插话.png'),animations:'disabled'});
+    await page.getByRole('button',{name:'打断并发送',exact:true}).click();
+    await page.getByText('OpenAI fixture connected',{exact:true}).nth(2).waitFor();
+    assert.equal(await page.getByText('已收到部分回复 DESK_SMOKE_HOLD_SECOND',{exact:true}).count(),1);
+    assert.equal(await page.getByText('未发送',{exact:true}).count(),1);
+    assert.deepEqual(sentTokens(),['DESK_SMOKE_HOLD_FIRST','DESK_SMOKE_FOLLOWUP','DESK_SMOKE_HOLD_SECOND','DESK_SMOKE_REPLACE']);
+    assert.deepEqual(errors,[]);
+    results.checks.push('Desk composer sends during a reply, waits for the next turn, and cancels and replaces queued work while retaining partial text');
+  }
+  results.ok=true;console.log(JSON.stringify(results,null,2));
 }catch(error){results.ok=false;results.error=error.stack;console.error(error);process.exitCode=1;}
 finally{if(app)await app.close().catch(()=>{});server.closeAllConnections();await new Promise(resolve=>server.close(resolve));results.rendererErrors=errors;await writeFile(path.join(output,'api-desktop-results.json'),JSON.stringify(results,null,2));}

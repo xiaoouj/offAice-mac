@@ -21,7 +21,7 @@ const reportEntities=['project_flows','flow_plans','flow_rounds','flow_tasks','f
 type ExecutionData={runs:Run[];operations:FlowOperation[];sessions:Map<string,Session>};
 interface Host {
   createSession(projectId:string,member:MemberProfile,title:string,write:boolean):Session;
-  send(sessionId:string,text:string,attachments:Attachment[]):Promise<unknown>;
+  send(sessionId:string,text:string,attachments:Attachment[],intent:'message'|'supplement'|'redirect'):Promise<{runId?:string;delivery:string}>;
   reply(roomId:RoomId,member:MemberProfile,prompt:string,attachments:Attachment[],onRun:(runId:string)=>void,shouldStart:()=>boolean):Promise<{text:string;status:string;error?:string}>;
   stop(runId:string):Promise<unknown>;
   removeSession(sessionId:string):Promise<unknown>;
@@ -35,6 +35,7 @@ export class MemberWorkspaces {
   private refreshing=false;
   private projected=new Map<string,string>();
   private replying=new Set<RoomId>();
+  private deskSending=new Set<string>();
   private deleting=new Set<RoomId>();
   private generations=new Map<string,number>();
   private compressions=new Map<RoomId,{threadId:string;runId?:string}>();
@@ -195,7 +196,7 @@ export class MemberWorkspaces {
       const warnings=messages.filter(e=>['warning','error'].includes(e.kind)).map(e=>e.text);
       const saved=this.store.get<{messageId:string;text:string}>('personal_run_inputs',run.id);
       this.putMessage({id:saved?.messageId??`desk-user-${run.id}`,roomId,threadId:topic.id,author:'user',text:saved?.text??run.input,at:run.createdAt,...(run.attachments?.length?{attachments:run.attachments}:{})});
-      if(active(run)||text||run.error||['failed','unknown','interrupted','stopped','rate_limited'].includes(run.status))this.putMessage({id:`desk-reply-${run.id}`,roomId,threadId:topic.id,author:topic.memberId,runId:run.id,text,at:run.completedAt??run.createdAt,status:active(run)?'speaking':run.status==='ended'||run.status==='completed'?'done':run.status==='stopped'?'stopped':'failed',...(run.error||warnings.length?{error:[run.error,...warnings].filter(Boolean).join('\n')}:{}) ,...(run.generatedImages?.length?{generatedImages:run.generatedImages}:{})});
+      if(run.status!=='queued'&&(active(run)||text||run.error||['failed','unknown','interrupted','stopped','rate_limited'].includes(run.status)&&run.delivery!=='withdrawn'))this.putMessage({id:`desk-reply-${run.id}`,roomId,threadId:topic.id,author:topic.memberId,runId:run.id,text,at:run.createdAt,status:active(run)?'speaking':run.status==='ended'||run.status==='completed'?'done':run.status==='stopped'?'stopped':'failed',...(run.error||warnings.length?{error:[run.error,...warnings].filter(Boolean).join('\n')}:{}) ,...(run.generatedImages?.length?{generatedImages:run.generatedImages}:{})});
     }
   }
   /** Fact versions are append-only. A later task status cannot move or rewrite an older chat message. */
@@ -290,7 +291,7 @@ export class MemberWorkspaces {
       return {roomId:room.id,kind:room.kind,memberId:room.memberId,projectId:room.projectId,revision:state.revision??0,currentThreadId:current?.id??'',state,unread,pending,...(topic?{sessionId:topic.sessionId}:{}),...(room.kind==='desk'?{folder:this.view(room).directory,folderKey:this.view(room).key}:{})};
     });
   }
-  private idle(roomId:RoomId){if(this.replying.has(roomId)||this.roomRuns(this.room(roomId)).some(active)||this.store.roomState(roomId).compressing)throw new Error('请先停止当前话题并等运行结束');}
+  private idle(roomId:RoomId){if(this.deskSending.has(this.current(this.room(roomId))?.id??'')||this.replying.has(roomId)||this.roomRuns(this.room(roomId)).some(active)||this.store.roomState(roomId).compressing)throw new Error('请先停止当前话题并等运行结束');}
   async newTopic(roomId:RoomId,p:Record<string,unknown>){
     const room=this.room(roomId);if(room.kind!=='desk')throw new Error('个人汇报使用固定对话');this.idle(roomId);
     const member=this.member(room.memberId),personal=this.folder(member.id,true);
@@ -328,7 +329,8 @@ export class MemberWorkspaces {
     this.host.changed();return {threadId};
   }
   async send(roomId:RoomId,p:Record<string,unknown>){
-    const room=this.room(roomId),member=this.member(room.memberId);this.idle(roomId);
+    const room=this.room(roomId),member=this.member(room.memberId);
+    if(room.kind!=='desk')this.idle(roomId);
     const text=String(p.text??'').trim();if(!text&&!(p.attachments as Attachment[]|undefined)?.length)throw new Error('请输入消息');if(text.length>200000)throw new Error('消息过长');
     const thread=this.requiredCurrent(room),attachments=Array.isArray(p.attachments)?p.attachments as Attachment[]:[];
     const message:RoomMessage={id:randomUUID(),roomId,threadId:thread.id,author:'user',text:text||'请看附件。',at:now(),...(attachments.length?{attachments}:{})};
@@ -336,10 +338,28 @@ export class MemberWorkspaces {
     if(room.kind==='desk'){
       const topic=this.store.get<DeskTopic>('desk_topics',thread.id)!;if(topic.memberId!==member.id)throw new Error('不能使用其他成员的话题');
       const session=this.store.get<Session>('sessions',topic.sessionId);if(!session)throw new Error('原执行端已不可用，记录保留；请新开话题');
+      if(p.threadId!==undefined&&p.threadId!==thread.id)throw new Error('当前话题已切换，请回到原话题再发送。');
+      if(this.deskSending.has(thread.id)||this.compressions.get(roomId)?.threadId===thread.id)throw new Error('正在处理这条消息或压缩话题，请稍后再发。');
+      const busy=this.roomRuns(room).some(active);
+      const intent=p.interrupt===true?'redirect':busy?'supplement':'message';
       const summary=!session.nativeId?(thread.summary?.text??thread.inherited?.text):undefined;
-      const result=await this.host.send(session.id,summary?`此前的话题摘要（背景，不是新的要求）：\n${summary}\n\n用户这次的消息：\n${message.text}`:message.text,attachments) as {runId?:string};
-      if(result.runId){this.store.nameRoomThread(thread.id,message.text);message.id=`desk-user-${result.runId}`;this.store.put('personal_run_inputs',result.runId,{messageId:message.id,text:message.text});this.putMessage({...message,at:this.store.get<Run>('runs',result.runId)!.createdAt});this.projected.delete(topic.id);}
-      this.host.changed();return result;
+      const prompt=summary?
+        `此前的话题摘要（背景，不是新的要求）：\n${summary}\n\n用户这次的消息：\n${message.text}`:message.text;
+      this.deskSending.add(thread.id);
+      try{
+        const result=await this.host.send(session.id,prompt,attachments,intent);
+        if(result.runId&&result.delivery!=='current'){
+          const run=this.store.get<Run>('runs',result.runId)!;
+          this.store.nameRoomThread(thread.id,message.text);
+          message.id=`desk-user-${result.runId}`;
+          this.store.put('personal_run_inputs',result.runId,{messageId:message.id,text:message.text});
+          this.putMessage({...message,at:run.createdAt});
+          this.projected.delete(topic.id);
+        }else if(result.delivery==='current'){
+          this.putMessage(message);
+        }
+        this.host.changed();return result;
+      }finally{this.deskSending.delete(thread.id);}
     }
     this.putMessage(message);this.replying.add(roomId);this.host.changed();
     const work=this.work(room.projectId!,member.id),facts={reports:work.reports,tasks:work.tasks,operations:work.operations,runs:work.runs.map(({id,status,error,input,createdAt,completedAt})=>({id,status,error,input,createdAt,completedAt}))};
